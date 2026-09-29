@@ -154,29 +154,29 @@ def cote():
         price, rkm = parse_price_km(r)
         sc = score_result(r, brand, model, year, km)
 
-        if price and sc >= 60:
-    adj = price
+    if price and sc >= 60:
+        adj = price
 
-    if rkm is not None:
-        adj = price + ((rkm - km) * 0.12)
+        if rkm is not None:
+            adj = price + ((rkm - km) * 0.12)
 
-    texte_annonce = f"{r.get('title', '')} {r.get('snippet', '')}"
-    annee_annonce = re.search(r"\b(20\d{2})\b", texte_annonce)
+        texte_annonce = f"{r.get('title', '')} {r.get('snippet', '')}"
+        annee_annonce = re.search(r"\b(20\d{2})\b", texte_annonce)
 
-    if annee_annonce:
+        if annee_annonce:
         annee_annonce = int(annee_annonce.group(1))
         ecart_annee = year - annee_annonce
         correction_annee = max(-0.12, min(0.12, ecart_annee * 0.04))
         adj = adj * (1 + correction_annee)
 
-            rows.append({
-                "title": r.get("title"),
-                "url": r.get("link"),
-                "snippet": r.get("snippet"),
-                "price": price,
-                "km": rkm,
-                "adjusted": round(adj),
-                "score": round(sc)
+        rows.append({
+            "title": r.get("title"),
+            "url": r.get("link"),
+            "snippet": r.get("snippet"),
+            "price": price,
+            "km": rkm,
+            "adjusted": round(adj),
+            "score": round(sc)
             })
 
     rows.sort(
