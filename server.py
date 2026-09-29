@@ -12,7 +12,19 @@ def score_result(r, brand, model, year, target_km):
     title = r.get("title", "")
     snippet = r.get("snippet", "")
     text = f"{title} {snippet}".lower()
+    
+    generic_words = [
+        "cotations",
+        "cotation",
+        "tarifs",
+        "tous les tarifs",
+        "prix des",
+        "guide",
+        "catalogue"
+    ]
 
+    if any(word in title.lower() for word in generic_words):
+        return 0
     score = 0
 
     if norm(brand) in norm(title):
