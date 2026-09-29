@@ -183,11 +183,11 @@ def cote():
         if x["adjusted"]
     ]
 
-    if len(vals) < 3:
+    if len(vals) <2:
         return jsonify({
             "status": "insufficient",
             "comparables": rows,
-            "message": "Moins de 3 comparables suffisamment fiables."
+            "message": "Moins de 2 comparables suffisamment fiables."
         })
 
     med = statistics.median(vals)
