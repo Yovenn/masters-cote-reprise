@@ -9,19 +9,37 @@ def norm(s):
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
 def score_result(r, brand, model, year, target_km):
-    text = f"{r.get('title','')} {r.get('snippet','')}".lower()
+    title = r.get("title", "")
+    snippet = r.get("snippet", "")
+    text = f"{title} {snippet}".lower()
+
     score = 0
-    if norm(brand) in norm(text):
-        score += 30
-    if norm(model) in norm(text):
-        score += 45
-    if str(year) in text:
+
+    if norm(brand) in norm(title):
+        score += 25
+    elif norm(brand) in norm(text):
+        score += 10
+
+    model_norm = norm(model)
+    title_norm = norm(title)
+    text_norm = norm(text)
+
+    # Le modèle exact doit apparaître dans le titre
+if model_norm in title_norm:
+    score += 55
+else:
+    return 0
+
+    if str(year) in title:
         score += 15
+    elif str(year) in text:
+        score += 5
 
     kms = [
         int(re.sub(r"\D", "", x))
         for x in re.findall(
-            r"\b\d{1,3}(?:[ .]\d{3})?\s*km\b", text
+            r"\b\d{1,3}(?:[ .]\d{3})?\s*km\b",
+            text
         )
     ]
 
