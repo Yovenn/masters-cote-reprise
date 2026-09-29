@@ -19,7 +19,7 @@ def score_result(r, brand, model, year, target_km):
         score += 15
 
     kms = [
-        int(x.replace(" ", "").replace(".", ""))
+        int(re.sub(r"\D", "", x))
         for x in re.findall(
             r"\b\d{1,3}(?:[ .]\d{3})?\s*km\b", text
         )
