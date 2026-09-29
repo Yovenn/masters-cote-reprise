@@ -154,7 +154,7 @@ def cote():
         price, rkm = parse_price_km(r)
         sc = score_result(r, brand, model, year, km)
 
-    if price and sc >= 60:
+    if price and sc >= 55:
         adj = price
 
         if rkm is not None:
