@@ -163,11 +163,11 @@ def cote():
         texte_annonce = f"{r.get('title', '')} {r.get('snippet', '')}"
         annee_annonce = re.search(r"\b(20\d{2})\b", texte_annonce)
 
-    if annee_annonce:
-        annee_annonce = int(annee_annonce.group(1))
-        ecart_annee = year - annee_annonce
-        correction_annee = max(-0.12, min(0.12, ecart_annee * 0.04))
-        adj = adj * (1 + correction_annee)
+        if annee_annonce:
+            annee_annonce = int(annee_annonce.group(1))
+            ecart_annee = year - annee_annonce
+            correction_annee = max(-0.12, min(0.12, ecart_annee * 0.04))
+            adj = adj * (1 + correction_annee)
 
         rows.append({
             "title": r.get("title"),
