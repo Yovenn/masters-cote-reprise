@@ -24,7 +24,7 @@ def score_result(r, brand, model, year, target_km):
     title_norm = norm(title)
     text_norm = norm(text)
 
-    # Le modèle exact doit apparaître dans le titre
+# Le modèle exact doit apparaître dans le titre
 if model_norm in title_norm:
     score += 55
 else:
