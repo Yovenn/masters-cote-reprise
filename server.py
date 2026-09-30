@@ -85,6 +85,28 @@ def dica_matches(brand,model,year,km,hp=None):
         rev=round(rev)
         out.append({"year":r["year"],"horsepower":rhp,"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":rev,"reprise_corrigee":round(rev*DICA_REPRISE_FACTOR),"page":r["page"]})
     return out
+def dica_near_matches(brand,model,year,km,hp=None):
+    b,m=norm(brand),norm(model); ref=max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR); candidates=[]
+    for r in DICA:
+        if r["year"]!=year or r["brand_norm"]!=b: continue
+        rm=r["model_norm"]
+        if not (rm==m or rm in m or m in rm): continue
+        rhp=motor_hp(r.get("motorisation",""))
+        if hp is not None and rhp is not None and rhp != hp: continue
+        if km>ref: corr=(km-ref)*DICA_OVER_KM_RATE; rev=r["revente"]-corr
+        else: corr=(ref-km)*DICA_UNDER_KM_RATE; rev=r["revente"]+corr
+        score=20
+        if hp is not None and rhp==hp: score+=15
+        if norm(r.get("gamme","")) and norm(r.get("gamme","")) in m: score+=10
+        candidates.append((score,{"year":r["year"],"horsepower":rhp,"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":round(rev),"reprise_corrigee":round(rev*DICA_REPRISE_FACTOR),"page":r["page"]}))
+    candidates.sort(key=lambda z:(z[0],z[1]["horsepower"]==hp if hp is not None else False),reverse=True)
+    out=[]
+    seen=set()
+    for _,x in candidates:
+        key=(x["gamme"],x["model"],x["motorisation"])
+        if key not in seen: seen.add(key); out.append(x)
+    return out[:5]
+
 def model_match_score(text,model):
     raw=(text or "").lower(); model=(model or "").strip().lower()
     if not model:return 0
@@ -159,5 +181,5 @@ def cote():
     market_low=round(min(filtered)/100)*100
     market_high=round(max(filtered)/100)*100
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
-    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 and (statistics.median([abs(v-statistics.median(filtered)) for v in filtered]) / max(1,statistics.median(filtered))) <= 0.10 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 and (statistics.median([abs(v-statistics.median(filtered)) for v in filtered]) / max(1,statistics.median(filtered))) <= 0.10 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_near":dica_near_matches(brand,model,year,km,hp) if not dica else [],"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
