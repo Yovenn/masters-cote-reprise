@@ -204,14 +204,28 @@ def cote():
     if len(values)<3: primary=(primary+context)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
     if len(values)<3: return jsonify({"status":"insufficient","comparables":primary,"context":context[:5],"dica":dica,"message":"Moins de 3 comparables suffisamment fiables ont été trouvés sur le marché actuel."})
     med=statistics.median(values)
+    filtered_values=list(values)
+    excluded_values=[]
     if len(values)>=5:
-        deviations=[abs(v-med) for v in values]; mad=statistics.median(deviations)
-        filtered=[v for v in values if abs(v-med)<=3*mad] if mad>0 else [v for v in values if med*.90<=v<=med*1.10]
-        if len(filtered)<3: filtered=values
-    else: filtered=values
+        deviations=[abs(v-med) for v in values]
+        mad=statistics.median(deviations)
+        if mad>0:
+            limit=3*mad
+            filtered_values=[v for v in values if abs(v-med)<=limit]
+        else:
+            filtered_values=[v for v in values if med*.90<=v<=med*1.10]
+        if len(filtered_values)<3:
+            filtered_values=list(values)
+        excluded_values=[v for v in values if v not in filtered_values]
+    filtered=filtered_values
     market=round(statistics.median(filtered)/100)*100
     market_low=round(min(filtered)/100)*100
     market_high=round(max(filtered)/100)*100
+    dispersion=statistics.median([abs(v-statistics.median(filtered)) for v in filtered]) / max(1,statistics.median(filtered))
+    confidence="Bonne" if len(filtered)>=7 and dispersion<=0.10 else "Correcte" if len(filtered)>=5 else "Faible"
+    for row in primary:
+        row["retenu_dans_cote"]=row["adjusted"] in filtered
+        row["atypique"]=row["adjusted"] in excluded_values
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
-    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 and (statistics.median([abs(v-statistics.median(filtered)) for v in filtered]) / max(1,statistics.median(filtered))) <= 0.10 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_near":dica_near_matches(brand,model,year,km,hp,options_total) if not dica else [],"accessories":option_details,"accessories_value":options_total,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_near":dica_near_matches(brand,model,year,km,hp,options_total) if not dica else [],"accessories":option_details,"accessories_value":options_total,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
