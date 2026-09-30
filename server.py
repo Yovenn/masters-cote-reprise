@@ -113,9 +113,13 @@ def dica_near_matches(brand,model,year,km,hp=None,options_value_total=0):
     for r in DICA:
         if r["year"]!=year or r["brand_norm"]!=b: continue
         rm=r["model_norm"]
-        if not (rm==m or rm in m or m in rm): continue
+        rg=norm(r.get("gamme",""))
+        composite=norm(f"{r.get('gamme','')} {r.get('model','')}")
+        if not (rm==m or rm in m or m in rm or composite==m or composite in m or (rg and rg in m and rm in m)): continue
         rhp=motor_hp(r.get("motorisation",""))
-        if hp is not None and rhp is not None and rhp != hp: continue
+        # Si une puissance est saisie, une référence sans puissance identifiable
+        # ne doit pas être présentée comme une correspondance moteur.
+        if hp is not None and rhp != hp: continue
         if km>ref: corr=(km-ref)*DICA_OVER_KM_RATE; rev=r["revente"]-corr
         else: corr=(ref-km)*DICA_UNDER_KM_RATE; rev=r["revente"]+corr
         score=20
