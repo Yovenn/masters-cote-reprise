@@ -52,16 +52,27 @@ def parse_price_km(r):
     text=f"{r.get('title','')} {r.get('snippet','')}"
     ps=extract_prices(text); ks=extract_kms(text)
     return (ps[0] if ps else None),(ks[0] if ks else None)
-def dica_matches(brand,model,year,km):
+def extract_hp(text):
+    out=[]
+    for m in re.finditer(r'\b(\d{2,3})\s*(?:ch|cv|chevaux)\b', (text or '').lower()):
+        v=int(m.group(1))
+        if 50<=v<=500: out.append(v)
+    return out
+def motor_hp(motorisation):
+    vals=extract_hp(motorisation)
+    return vals[0] if vals else None
+def dica_matches(brand,model,year,km,hp=None):
     b,m=norm(brand),norm(model); ref=max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR); out=[]
     for r in DICA:
         if r["year"]!=year or r["brand_norm"]!=b: continue
         rm=r["model_norm"]
         if not (rm==m or rm in m or m in rm): continue
+        rhp=motor_hp(r.get("motorisation",""))
+        if hp is not None and rhp is not None and rhp != hp: continue
         if km>ref: corr=(km-ref)*DICA_OVER_KM_RATE; rev=r["revente"]-corr
         else: corr=(ref-km)*DICA_UNDER_KM_RATE; rev=r["revente"]+corr
         rev=round(rev)
-        out.append({"year":r["year"],"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":rev,"reprise_corrigee":round(rev*DICA_REPRISE_FACTOR),"page":r["page"]})
+        out.append({"year":r["year"],"horsepower":rhp,"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":rev,"reprise_corrigee":round(rev*DICA_REPRISE_FACTOR),"page":r["page"]})
     return out
 def model_match_score(text,model):
     raw=(text or "").lower(); model=(model or "").strip().lower()
@@ -71,7 +82,7 @@ def model_match_score(text,model):
     if compact and compact in compact_text:return 48
     parts=[p for p in re.split(r"[\s/-]+",model) if len(p)>=2]
     return 48 if parts and all(p in raw for p in parts) else 0
-def score_result(r,brand,model,year,target_km):
+def score_result(r,brand,model,year,target_km,hp=None):
     text=f"{r.get('title','')} {r.get('snippet','')}"; low=text.lower(); score=0
     if norm(brand) in norm(low): score+=30
     score+=model_match_score(low,model)
@@ -79,14 +90,17 @@ def score_result(r,brand,model,year,target_km):
     ks=extract_kms(text)
     if ks:
         d=min(abs(k-target_km) for k in ks); score+=max(0,10-min(10,d/5000))
+    if hp is not None:
+        hps=extract_hp(text)
+        if hp in hps: score+=15
     return score
 def is_new(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower()
     return any(w in text for w in NEW_WORDS) or bool(re.search(r"\b0\s*km\b",text))
 def is_aggregation(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower(); return any(w in text for w in AGGREGATOR_WORDS)
-def comparable_row(r,brand,model,year,target_km):
-    price,rkm=parse_price_km(r); score=score_result(r,brand,model,year,target_km)
+def comparable_row(r,brand,model,year,target_km,hp=None):
+    price,rkm=parse_price_km(r); score=score_result(r,brand,model,year,target_km,hp)
     if not price or score<70 or is_new(r): return None
     if is_aggregation(r): score-=10
     adjusted=price; km_adjustment=0
@@ -100,12 +114,14 @@ def home(): return send_from_directory("static","index.html")
 @app.post("/api/cote")
 def cote():
     data=request.get_json(force=True); brand=str(data.get("brand","")).strip(); model=str(data.get("model","")).strip()
-    try: year=int(data.get("year")); km=int(data.get("km"))
+    hp_raw=str(data.get("hp","")).strip()
+    try: year=int(data.get("year")); km=int(data.get("km")); hp=int(hp_raw) if hp_raw else None
     except (TypeError,ValueError): return jsonify({"error":"Année et kilométrage invalides."}),400
-    if not brand or not model or year<2010 or km<0: return jsonify({"error":"Merci de renseigner une marque, un modèle, une année et un kilométrage valides."}),400
+    if not brand or not model or year<2010 or km<0 or (hp is not None and (hp<50 or hp>500)): return jsonify({"error":"Merci de renseigner des informations valides."}),400
     if not SERPER_API_KEY: return jsonify({"error":"SERPER_API_KEY manquante sur le serveur."}),500
-    dica=dica_matches(brand,model,year,km)
-    queries=[f'"{brand} {model}" {year} camping-car occasion',f'"{brand} {model}" {year} "{km} km" occasion',f'"{brand} {model}" {year} camping car occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
+    dica=dica_matches(brand,model,year,km,hp)
+    hp_query=f" {hp} ch" if hp else ""
+    queries=[f'"{brand} {model}" {year}{hp_query} camping-car occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" occasion',f'"{brand} {model}" {year} camping car occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
     results=[]
     for q in queries:
         try:
@@ -114,7 +130,7 @@ def cote():
         except requests.RequestException: continue
     uniq={r["link"]:r for r in results if r.get("link")}; rows=[]; context=[]
     for r in uniq.values():
-        row=comparable_row(r,brand,model,year,km)
+        row=comparable_row(r,brand,model,year,km,hp)
         if not row: continue
         (context if row["km"] is None else rows).append(row)
     rows.sort(key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True); context.sort(key=lambda x:x["score"],reverse=True)
@@ -125,5 +141,5 @@ def cote():
     market_low=round(min(filtered)/100)*100
     market_high=round(max(filtered)/100)*100
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
-    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"horsepower":hp,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
