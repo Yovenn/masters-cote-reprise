@@ -89,17 +89,21 @@ def options_value(options):
     return total,details
 
 def dica_model_match(target, record_model, record_gamme=""):
+    t_raw=str(target or "").lower()
+    rm_raw=str(record_model or "").lower()
+    rg_raw=str(record_gamme or "").lower()
     t=norm(target)
     rm=norm(record_model)
-    rg=norm(record_gamme)
     if not t or not rm:
         return False
     composite=norm(f"{record_gamme} {record_model}")
     if t==rm or t==composite:
         return True
-    tt=set(re.findall(r"[a-z0-9]+",t))
-    rt=set(re.findall(r"[a-z0-9]+",rm))
-    ct=set(re.findall(r"[a-z0-9]+",composite))
+    # Compare les vrais tokens avant la normalisation compacte.
+    # Exemple : "640 Titanium" doit matcher "Titanium Ultimate" + "640".
+    tt=set(re.findall(r"[a-z0-9]+",t_raw))
+    rt=set(re.findall(r"[a-z0-9]+",rm_raw))
+    ct=set(re.findall(r"[a-z0-9]+",f"{rg_raw} {rm_raw}"))
     if tt and rt and (tt<=rt or rt<=tt):
         return True
     if tt and ct and tt<=ct:
