@@ -53,6 +53,14 @@ def parse_price_km(r):
     text=f"{r.get('title','')} {r.get('snippet','')}"
     ps=extract_prices(text); ks=extract_kms(text)
     return (ps[0] if ps else None),(ks[0] if ks else None)
+def extract_transmission(text):
+    t=(text or "").lower()
+    if re.search(r"\b(?:bo[iî]te\s*)?(?:auto(?:matique)?|bva|9g[- ]tronic|8g[- ]tronic|e[- ]shift|comfort[- ]matic|robotis[ée]e)\b",t):
+        return "Automatique"
+    if re.search(r"\b(?:bo[iî]te\s*)?(?:manuelle|bvm)\b",t):
+        return "Manuelle"
+    return None
+
 def extract_hp(text):
     out=[]
     for m in re.finditer(r'\b(\d{2,3})\s*(?:ch|cv|chevaux)\b', (text or '').lower()):
@@ -159,7 +167,7 @@ def model_match_score(text,model):
     if compact and compact in compact_text:return 48
     parts=[p for p in re.split(r"[\s/-]+",model) if len(p)>=2]
     return 48 if parts and all(p in raw for p in parts) else 0
-def score_result(r,brand,model,year,target_km,hp=None):
+def score_result(r,brand,model,year,target_km,hp=None,transmission=None):
     title=str(r.get("title","")); snippet=str(r.get("snippet","")); text=f"{title} {snippet}"; low=text.lower(); score=0
     if norm(brand) in norm(low): score+=25
     score+=model_match_score(low,model)
@@ -170,6 +178,10 @@ def score_result(r,brand,model,year,target_km,hp=None):
     if hp is not None:
         hps=extract_hp(text)
         if hp in hps: score+=15
+    if transmission:
+        rt=extract_transmission(text)
+        if rt==transmission: score+=25
+        elif rt and rt!=transmission: score-=15
     if norm(model) and norm(model) in norm(title): score+=5
     return score
 def is_new(r):
@@ -181,8 +193,8 @@ def is_unavailable(r):
 def is_aggregation(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower()
     return any(w in text for w in AGGREGATOR_WORDS)
-def comparable_row(r,brand,model,year,target_km,hp=None):
-    price,rkm=parse_price_km(r); score=score_result(r,brand,model,year,target_km,hp)
+def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None):
+    price,rkm=parse_price_km(r); score=score_result(r,brand,model,year,target_km,hp,transmission)
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
     if is_aggregation(r): score-=10
     if score<65: return None
@@ -191,23 +203,24 @@ def comparable_row(r,brand,model,year,target_km,hp=None):
         if rkm>target_km: km_adjustment=round((rkm-target_km)*DICA_OVER_KM_RATE)
         elif rkm<target_km: km_adjustment=-round((target_km-rkm)*DICA_UNDER_KM_RATE)
         adjusted=price+km_adjustment
-    return {"title":r.get("title"),"url":r.get("link"),"snippet":r.get("snippet"),"price":price,"km":rkm,"adjusted":round(adjusted),"km_adjustment":km_adjustment,"score":round(score),"source":r.get("source","")}
+    return {"title":r.get("title"),"url":r.get("link"),"snippet":r.get("snippet"),"price":price,"km":rkm,"adjusted":round(adjusted),"km_adjustment":km_adjustment,"score":round(score),"source":r.get("source",""),"transmission":extract_transmission(text)}
 @app.get("/")
 def home(): return send_from_directory("static","index.html")
 @app.post("/api/cote")
 def cote():
     data=request.get_json(force=True); brand=str(data.get("brand","")).strip(); model=str(data.get("model","")).strip()
     cv_raw=str(data.get("cv","")).strip()
-    hp_raw=str(data.get("hp","")).strip()
+    hp_raw=str(data.get("hp","")).strip(); transmission=str(data.get("transmission","")).strip() or None
     try: year=int(data.get("year")); km=int(data.get("km")); cv=int(cv_raw) if cv_raw else None; hp=int(hp_raw) if hp_raw else None
     except (TypeError,ValueError): return jsonify({"error":"Année et kilométrage invalides."}),400
-    if not brand or not model or year<2010 or km<0 or (cv is not None and (cv<1 or cv>50)) or (hp is not None and (hp<50 or hp>500)): return jsonify({"error":"Merci de renseigner des informations valides."}),400
+    if not brand or not model or year<2010 or km<0 or (cv is not None and (cv<1 or cv>50)) or (hp is not None and (hp<50 or hp>500)) or (transmission not in (None,"Automatique","Manuelle")): return jsonify({"error":"Merci de renseigner des informations valides."}),400
     if not SERPER_API_KEY: return jsonify({"error":"SERPER_API_KEY manquante sur le serveur."}),500
     accessories=data.get("accessories") or []
     options_total, option_details=options_value(accessories)
     dica=dica_matches(brand,model,year,km,hp,options_total)
     hp_query=f" {hp} ch" if hp else ""
-    queries=[f'"{brand} {model}" {year}{hp_query} camping-car occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" occasion',f'"{brand} {model}" {year} camping car occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
+    transmission_query=f" {transmission.lower()}" if transmission else ""
+    queries=[f'"{brand} {model}" {year}{hp_query}{transmission_query} camping-car occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" occasion',f'"{brand} {model}" {year} camping car occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
     results=[]
     for q in queries:
         try:
@@ -221,11 +234,13 @@ def cote():
         if key[0]: dedup[key]=r
     rows=[]; context=[]
     for r in dedup.values():
-        row=comparable_row(r,brand,model,year,km,hp)
+        row=comparable_row(r,brand,model,year,km,hp,transmission)
         if not row: continue
         (context if row["km"] is None else rows).append(row)
     rows.sort(key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True); context.sort(key=lambda x:x["score"],reverse=True)
-    primary=rows[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
+    matching_rows=[x for x in rows if x.get("transmission")==transmission] if transmission else rows
+    transmission_fallback=bool(transmission and len(matching_rows)<3)
+    primary=(matching_rows if not transmission_fallback else rows)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
     if len(values)<3: primary=(primary+context)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
     if len(values)<3: return jsonify({"status":"insufficient","comparables":primary,"context":context[:5],"dica":dica,"message":"Moins de 3 comparables suffisamment fiables ont été trouvés sur le marché actuel."})
     med=statistics.median(values)
@@ -252,10 +267,21 @@ def cote():
         row["retenu_dans_cote"]=row["adjusted"] in filtered
         row["atypique"]=row["adjusted"] in excluded_values
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
+    transmission_gap=None
+    transmission_counts={"Automatique":0,"Manuelle":0,"Inconnue":0}
+    for row in rows:
+        rt=row.get("transmission")
+        transmission_counts[rt if rt in ("Automatique","Manuelle") else "Inconnue"]+=1
+    auto_vals=[x["adjusted"] for x in rows if x.get("transmission")=="Automatique"]
+    manual_vals=[x["adjusted"] for x in rows if x.get("transmission")=="Manuelle"]
+    if len(auto_vals)>=3 and len(manual_vals)>=3:
+        auto_med=round(statistics.median(auto_vals)/100)*100
+        manual_med=round(statistics.median(manual_vals)/100)*100
+        transmission_gap={"automatique_median":auto_med,"manuelle_median":manual_med,"difference":auto_med-manual_med,"difference_pct":round((auto_med-manual_med)/manual_med*100,1)}
     experimental_professional_value=None
     experimental_market_gap=None
     if len(dica)==1:
         experimental_market_gap=round(market-dica[0]["revente_corrigee"])
         experimental_professional_value=round(dica[0]["reprise_corrigee"] + (experimental_market_gap*DICA_RECALAGE_FACTOR))
-    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_ambiguous":len(dica)>1,"dica_near":dica_near_matches(brand,model,year,km,hp,options_total) if not dica else [],"experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":experimental_market_gap,"experimental_professional_value":experimental_professional_value,"accessories":option_details,"accessories_value":options_total,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"transmission":transmission,"transmission_fallback":transmission_fallback,"transmission_counts":transmission_counts,"transmission_gap":transmission_gap,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_ambiguous":len(dica)>1,"dica_near":dica_near_matches(brand,model,year,km,hp,options_total) if not dica else [],"experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":experimental_market_gap,"experimental_professional_value":experimental_professional_value,"accessories":option_details,"accessories_value":options_total,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
