@@ -65,8 +65,19 @@ def dica_matches(brand,model,year,km,hp=None):
     b,m=norm(brand),norm(model); ref=max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR); out=[]
     for r in DICA:
         if r["year"]!=year or r["brand_norm"]!=b: continue
-        rm=r["model_norm"]
-        if not (rm==m or rm in m or m in rm): continue
+        rm=r["model_norm"]; rg=norm(r.get("gamme",""))
+        composite=norm(f"{r.get('gamme','')} {r.get('model','')}")
+        if m==rm:
+            model_ok=True
+        elif m==composite:
+            model_ok=True
+        elif rg and rg in m and rm in m:
+            model_ok=True
+        elif not rg and (rm in m or m in rm):
+            model_ok=True
+        else:
+            model_ok=False
+        if not model_ok: continue
         rhp=motor_hp(r.get("motorisation",""))
         if hp is not None and rhp is not None and rhp != hp: continue
         if km>ref: corr=(km-ref)*DICA_OVER_KM_RATE; rev=r["revente"]-corr
