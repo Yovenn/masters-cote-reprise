@@ -33,32 +33,32 @@ def score_result(r, brand, model, year, target_km):
         "déstockage"
     ]
 
-if any(word in title.lower() for word in new_words):
-    return 0
+    if any(word in title.lower() for word in new_words):
+        return 0
     
-if any(word in title.lower() for word in generic_words):
-    return 0
-score = 0
+    if any(word in title.lower() for word in generic_words):
+        return 0
+        score = 0
 
-if norm(brand) in norm(title):
-    score += 25
-elif norm(brand) in norm(text):
-    score += 10
+    if norm(brand) in norm(title):
+        score += 25
+    elif norm(brand) in norm(text):
+        score += 10
 
-model_norm = norm(model)
-title_norm = norm(title)
-text_norm = norm(text)
+    model_norm = norm(model)
+    title_norm = norm(title)
+    text_norm = norm(text)
 
-# Le modèle exact doit apparaître dans le titre
-if model_norm in title_norm:
-    score += 55
-else:
-    return 0
+    # Le modèle exact doit apparaître dans le titre
+    if model_norm in title_norm:
+        score += 55
+    else:
+        return 0
 
-if str(year) in title:
-    score += 15
-elif str(year) in text:
-    score += 5
+    if str(year) in title:
+        score += 15
+    elif str(year) in text:
+        score += 5
 
     kms = [
         int(re.sub(r"\D", "", x))
