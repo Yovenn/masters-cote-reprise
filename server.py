@@ -22,10 +22,23 @@ def score_result(r, brand, model, year, target_km):
         "guide",
         "catalogue"
     ]
+    new_words = [
+        "neuf",
+        "neuve",
+        "0 km",
+        "jamais immatriculé",
+        "jamais immatricule",
+        "véhicule neuf",
+        "stock neuf",
+        "déstockage"
+    ]
 
-    if any(word in title.lower() for word in generic_words):
-        return 0
-    score = 0
+if any(word in title.lower() for word in new_words):
+    return 0
+    
+if any(word in title.lower() for word in generic_words):
+    return 0
+score = 0
 
     if norm(brand) in norm(title):
         score += 25
