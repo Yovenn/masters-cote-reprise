@@ -61,7 +61,26 @@ def extract_hp(text):
 def motor_hp(motorisation):
     vals=extract_hp(motorisation)
     return vals[0] if vals else None
-def dica_matches(brand,model,year,km,hp=None):
+def options_value(options):
+    total=0
+    details=[]
+    for o in options or []:
+        try:
+            name=str(o.get("name","")).strip()
+            price=float(o.get("price",0))
+            year=int(o.get("year",0))
+        except (TypeError,ValueError):
+            continue
+        if not name or price<=0 or year<1900 or year>DICA_EDITION_YEAR:
+            continue
+        age=DICA_EDITION_YEAR-year
+        rate=0.50 if age<=5 else max(0,0.50-0.05*(age-5))
+        value=round(price*rate)
+        details.append({"name":name,"price":round(price),"year":year,"age":age,"rate":rate,"value":value})
+        total+=value
+    return total,details
+
+def dica_matches(brand,model,year,km,hp=None,options_value_total=0):
     b,m=norm(brand),norm(model); ref=max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR); out=[]
     for r in DICA:
         if r["year"]!=year or r["brand_norm"]!=b: continue
@@ -83,9 +102,9 @@ def dica_matches(brand,model,year,km,hp=None):
         if km>ref: corr=(km-ref)*DICA_OVER_KM_RATE; rev=r["revente"]-corr
         else: corr=(ref-km)*DICA_UNDER_KM_RATE; rev=r["revente"]+corr
         rev=round(rev)
-        out.append({"year":r["year"],"horsepower":rhp,"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":rev,"reprise_corrigee":round(rev*DICA_REPRISE_FACTOR),"page":r["page"]})
+        out.append({"year":r["year"],"horsepower":rhp,"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":rev,"reprise_corrigee":round(rev*DICA_REPRISE_FACTOR),"options_value":options_value_total,"revente_avec_options":round(rev+options_value_total),"reprise_avec_options":round(rev*DICA_REPRISE_FACTOR+options_value_total),"page":r["page"]})
     return out
-def dica_near_matches(brand,model,year,km,hp=None):
+def dica_near_matches(brand,model,year,km,hp=None,options_value_total=0):
     b,m=norm(brand),norm(model); ref=max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR); candidates=[]
     for r in DICA:
         if r["year"]!=year or r["brand_norm"]!=b: continue
@@ -153,7 +172,9 @@ def cote():
     except (TypeError,ValueError): return jsonify({"error":"Année et kilométrage invalides."}),400
     if not brand or not model or year<2010 or km<0 or (cv is not None and (cv<1 or cv>50)) or (hp is not None and (hp<50 or hp>500)): return jsonify({"error":"Merci de renseigner des informations valides."}),400
     if not SERPER_API_KEY: return jsonify({"error":"SERPER_API_KEY manquante sur le serveur."}),500
-    dica=dica_matches(brand,model,year,km,hp)
+    accessories=data.get("accessories") or []
+    options_total, option_details=options_value(accessories)
+    dica=dica_matches(brand,model,year,km,hp,options_total)
     hp_query=f" {hp} ch" if hp else ""
     queries=[f'"{brand} {model}" {year}{hp_query} camping-car occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" occasion',f'"{brand} {model}" {year} camping car occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
     results=[]
@@ -181,5 +202,5 @@ def cote():
     market_low=round(min(filtered)/100)*100
     market_high=round(max(filtered)/100)*100
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
-    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 and (statistics.median([abs(v-statistics.median(filtered)) for v in filtered]) / max(1,statistics.median(filtered))) <= 0.10 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_near":dica_near_matches(brand,model,year,km,hp) if not dica else [],"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 and (statistics.median([abs(v-statistics.median(filtered)) for v in filtered]) / max(1,statistics.median(filtered))) <= 0.10 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_near":dica_near_matches(brand,model,year,km,hp,options_total) if not dica else [],"accessories":option_details,"accessories_value":options_total,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
