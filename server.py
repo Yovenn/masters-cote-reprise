@@ -38,7 +38,7 @@ def score_result(r, brand, model, year, target_km):
     
     if any(word in title.lower() for word in generic_words):
         return 0
-        score = 0
+    score = 0
 
     if norm(brand) in norm(title):
         score += 25
