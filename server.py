@@ -62,9 +62,15 @@ def motor_hp(motorisation):
     vals=extract_hp(motorisation)
     if vals:
         return vals[0]
-    # Dans la DICA, certaines motorisations indiquent la puissance
-    # en dernier nombre sans écrire "ch/cv" (ex. "2,2 l 120").
-    m=re.search(r'(?<![0-9])([0-9]{2,3})\s*
+    # Certaines lignes DICA indiquent la puissance en dernier nombre
+    # sans écrire "ch/cv", par exemple "Fiat Ducato 2,2 l 120".
+    parts=(motorisation or "").strip().split()
+    if parts and parts[-1].isdigit():
+        v=int(parts[-1])
+        if 50<=v<=500:
+            return v
+    return None
+
 def options_value(options):
     total=0
     details=[]
