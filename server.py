@@ -11,7 +11,21 @@ DICA_REPRISE_FACTOR = 0.85
 MASTERS_FRAIS = 8000
 BASE_DIR = os.path.dirname(__file__)
 with open(os.path.join(BASE_DIR, "dica32_camping_cars.json"), encoding="utf-8") as f:
-    DICA = json.load(f)["records"]
+    _dica = json.load(f)
+DICA = []
+for row in _dica["records"]:
+    if isinstance(row, list):
+        year, brand, gamme, model, motorisation, type_, neuf, revente, reprise, page = row
+        DICA.append({
+            "year": year, "brand": brand, "brand_norm": norm(brand),
+            "gamme": gamme, "model": model, "model_norm": norm(model),
+            "motorisation": motorisation, "type": type_, "neuf": neuf,
+            "revente": revente, "reprise": reprise, "page": page
+        })
+    else:
+        row["brand_norm"] = norm(row.get("brand",""))
+        row["model_norm"] = norm(row.get("model",""))
+        DICA.append(row)
 NEW_WORDS=("neuf","neuve","0 km","0km","jamais immatriculé","jamais immatricule","véhicule neuf","vehicule neuf","stock neuf","déstockage","destockage")
 AGGREGATOR_WORDS=("page 2","page 3","page 4","page 5","tous les véhicules","toutes les annonces","résultats de recherche","resultats de recherche","annonces similaires")
 def norm(s): return re.sub(r"[^a-z0-9]","",(s or "").lower())
