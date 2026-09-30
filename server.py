@@ -115,12 +115,14 @@ def home(): return send_from_directory("static","index.html")
 def cote():
     data=request.get_json(force=True); brand=str(data.get("brand","")).strip(); model=str(data.get("model","")).strip()
     cv_raw=str(data.get("cv","")).strip()
-    try: year=int(data.get("year")); km=int(data.get("km")); cv=int(cv_raw) if cv_raw else None
+    hp_raw=str(data.get("hp","")).strip()
+    try: year=int(data.get("year")); km=int(data.get("km")); cv=int(cv_raw) if cv_raw else None; hp=int(hp_raw) if hp_raw else None
     except (TypeError,ValueError): return jsonify({"error":"Année et kilométrage invalides."}),400
-    if not brand or not model or year<2010 or km<0 or (cv is not None and (cv<1 or cv>50)): return jsonify({"error":"Merci de renseigner des informations valides."}),400
+    if not brand or not model or year<2010 or km<0 or (cv is not None and (cv<1 or cv>50)) or (hp is not None and (hp<50 or hp>500)): return jsonify({"error":"Merci de renseigner des informations valides."}),400
     if not SERPER_API_KEY: return jsonify({"error":"SERPER_API_KEY manquante sur le serveur."}),500
-    dica=dica_matches(brand,model,year,km)
-    queries=[f'"{brand} {model}" {year} camping-car occasion',f'"{brand} {model}" {year} "{km} km" occasion',f'"{brand} {model}" {year} camping car occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
+    dica=dica_matches(brand,model,year,km,hp)
+    hp_query=f" {hp} ch" if hp else ""
+    queries=[f'"{brand} {model}" {year}{hp_query} camping-car occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" occasion',f'"{brand} {model}" {year} camping car occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
     results=[]
     for q in queries:
         try:
@@ -129,7 +131,7 @@ def cote():
         except requests.RequestException: continue
     uniq={r["link"]:r for r in results if r.get("link")}; rows=[]; context=[]
     for r in uniq.values():
-        row=comparable_row(r,brand,model,year,km)
+        row=comparable_row(r,brand,model,year,km,hp)
         if not row: continue
         (context if row["km"] is None else rows).append(row)
     rows.sort(key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True); context.sort(key=lambda x:x["score"],reverse=True)
@@ -140,5 +142,5 @@ def cote():
     market_low=round(min(filtered)/100)*100
     market_high=round(max(filtered)/100)*100
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
-    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
