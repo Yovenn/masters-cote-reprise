@@ -10,6 +10,7 @@ DICA_OVER_KM_RATE = 0.20
 DICA_UNDER_KM_RATE = 0.10
 DICA_REPRISE_FACTOR = 0.85
 MASTERS_FRAIS = 8000
+DICA_RECALAGE_FACTOR = 0.50
 BASE_DIR = os.path.dirname(__file__)
 with open(os.path.join(BASE_DIR, "dica32_camping_cars.json"), encoding="utf-8") as f:
     _dica = json.load(f)
@@ -247,5 +248,10 @@ def cote():
         row["retenu_dans_cote"]=row["adjusted"] in filtered
         row["atypique"]=row["adjusted"] in excluded_values
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
-    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_near":dica_near_matches(brand,model,year,km,hp,options_total) if not dica else [],"accessories":option_details,"accessories_value":options_total,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    experimental_professional_value=None
+    experimental_market_gap=None
+    if dica:
+        experimental_market_gap=round(market-dica[0]["revente_corrigee"])
+        experimental_professional_value=round(dica[0]["reprise_corrigee"] + (experimental_market_gap*DICA_RECALAGE_FACTOR))
+    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_near":dica_near_matches(brand,model,year,km,hp,options_total) if not dica else [],"experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":experimental_market_gap,"experimental_professional_value":experimental_professional_value,"accessories":option_details,"accessories_value":options_total,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
