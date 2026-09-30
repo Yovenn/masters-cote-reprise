@@ -147,29 +147,20 @@ def score_result(r,brand,model,year,target_km,hp=None):
         if hp in hps: score+=15
     if norm(model) and norm(model) in norm(title): score+=5
     return score
+def is_new(r):
+    text=f"{r.get('title','')} {r.get('snippet','')}".lower()
+    return any(w in text for w in NEW_WORDS) or bool(re.search(r"\b0\s*km\b",text))
 def is_unavailable(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower()
     return any(w in text for w in ("vendu","déjà vendu","deja vendu","indisponible","archivé","archive"))
+def is_aggregation(r):
+    text=f"{r.get('title','')} {r.get('snippet','')}".lower()
+    return any(w in text for w in AGGREGATOR_WORDS)
 def comparable_row(r,brand,model,year,target_km,hp=None):
     price,rkm=parse_price_km(r); score=score_result(r,brand,model,year,target_km,hp)
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
     if is_aggregation(r): score-=10
     if score<65: return None
-    adjusted=price; km_adjustment=0
-    if rkm is not None:
-        if rkm>target_km: km_adjustment=round((rkm-target_km)*DICA_OVER_KM_RATE)
-        elif rkm<target_km: km_adjustment=-round((target_km-rkm)*DICA_UNDER_KM_RATE)
-        adjusted=price+km_adjustment
-    return {"title":r.get("title"),"url":r.get("link"),"snippet":r.get("snippet"),"price":price,"km":rkm,"adjusted":round(adjusted),"km_adjustment":km_adjustment,"score":round(score),"source":r.get("source","")}
-def is_new(r):
-    text=f"{r.get('title','')} {r.get('snippet','')}".lower()
-    return any(w in text for w in NEW_WORDS) or bool(re.search(r"\b0\s*km\b",text))
-def is_aggregation(r):
-    text=f"{r.get('title','')} {r.get('snippet','')}".lower(); return any(w in text for w in AGGREGATOR_WORDS)
-def comparable_row(r,brand,model,year,target_km,hp=None):
-    price,rkm=parse_price_km(r); score=score_result(r,brand,model,year,target_km,hp)
-    if not price or score<70 or is_new(r): return None
-    if is_aggregation(r): score-=10
     adjusted=price; km_adjustment=0
     if rkm is not None:
         if rkm>target_km: km_adjustment=round((rkm-target_km)*DICA_OVER_KM_RATE)
