@@ -138,7 +138,13 @@ def cote():
     primary=rows[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
     if len(values)<3: primary=(primary+context)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
     if len(values)<3: return jsonify({"status":"insufficient","comparables":primary,"context":context[:5],"dica":dica,"message":"Moins de 3 comparables suffisamment fiables ont été trouvés sur le marché actuel."})
-    med=statistics.median(values); filtered=[v for v in values if med*.88<=v<=med*1.12] if len(values)>=5 else values; market=round(statistics.median(filtered)/100)*100
+    med=statistics.median(values)
+    if len(values)>=5:
+        deviations=[abs(v-med) for v in values]; mad=statistics.median(deviations)
+        filtered=[v for v in values if abs(v-med)<=3*mad] if mad>0 else [v for v in values if med*.90<=v<=med*1.10]
+        if len(filtered)<3: filtered=values
+    else: filtered=values
+    market=round(statistics.median(filtered)/100)*100
     market_low=round(min(filtered)/100)*100
     market_high=round(max(filtered)/100)*100
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
