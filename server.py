@@ -1,4 +1,5 @@
 import os, re, statistics, json, requests
+from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 
 app = Flask(__name__, static_folder="static")
@@ -121,5 +122,8 @@ def cote():
     if len(values)<3: primary=(primary+context)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
     if len(values)<3: return jsonify({"status":"insufficient","comparables":primary,"context":context[:5],"dica":dica,"message":"Moins de 3 comparables suffisamment fiables ont été trouvés sur le marché actuel."})
     med=statistics.median(values); filtered=[v for v in values if med*.88<=v<=med*1.12] if len(values)>=5 else values; market=round(statistics.median(filtered)/100)*100
-    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    market_low=round(min(filtered)/100)*100
+    market_high=round(max(filtered)/100)*100
+    search_time=datetime.now().astimezone().isoformat(timespec="minutes")
+    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
