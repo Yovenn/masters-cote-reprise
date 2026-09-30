@@ -112,25 +112,33 @@ def dica_matches(brand,model,year,km,hp=None,options_value_total=0):
         out.append({"year":r["year"],"horsepower":rhp,"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":rev,"reprise_corrigee":round(rev*DICA_REPRISE_FACTOR),"options_value":options_value_total,"revente_avec_options":round(rev+options_value_total),"reprise_avec_options":round(rev*DICA_REPRISE_FACTOR+options_value_total),"page":r["page"]})
     return out
 def dica_near_matches(brand,model,year,km,hp=None,options_value_total=0):
-    b,m=norm(brand),norm(model); ref=max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR); candidates=[]
+    b,m=norm(brand),norm(model)
+    target_ref=max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR)
+    candidates=[]
     for r in DICA:
-        if r["year"]!=year or r["brand_norm"]!=b: continue
-        rm=r["model_norm"]
-        if not (rm==m or rm in m or m in rm): continue
+        if r["brand_norm"]!=b: continue
+        year_gap=abs(r["year"]-year)
+        if year_gap>2: continue
+        rm=r["model_norm"]; rg=norm(r.get("gamme",""))
+        composite=norm(f"{r.get('gamme','')} {r.get('model','')}")
+        model_ok=(rm==m or rm in m or m in rm or composite==m or composite in m or (rg and rg in m and rm in m))
+        if not model_ok: continue
         rhp=motor_hp(r.get("motorisation",""))
-        if hp is not None and rhp is not None and rhp != hp: continue
+        if hp is not None and rhp != hp: continue
+        ref=max(0,(DICA_EDITION_YEAR-r["year"])*DICA_REF_KM_PER_YEAR)
         if km>ref: corr=(km-ref)*DICA_OVER_KM_RATE; rev=r["revente"]-corr
         else: corr=(ref-km)*DICA_UNDER_KM_RATE; rev=r["revente"]+corr
-        score=20
-        if hp is not None and rhp==hp: score+=15
-        if norm(r.get("gamme","")) and norm(r.get("gamme","")) in m: score+=10
-        candidates.append((score,{"year":r["year"],"horsepower":rhp,"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":round(rev),"reprise_corrigee":round(rev*DICA_REPRISE_FACTOR),"page":r["page"]}))
-    candidates.sort(key=lambda z:(z[0],z[1]["horsepower"]==hp if hp is not None else False),reverse=True)
-    out=[]
-    seen=set()
-    for _,x in candidates:
-        key=(x["gamme"],x["model"],x["motorisation"])
-        if key not in seen: seen.add(key); out.append(x)
+        score=100-(year_gap*20)
+        if hp is not None and rhp==hp: score+=40
+        if rg and rg in m: score+=20
+        if r["year"]==year: score+=20
+        candidates.append((score,year_gap,{"year":r["year"],"horsepower":rhp,"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":round(rev),"reprise_corrigee":round(rev*DICA_REPRISE_FACTOR),"page":r["page"]}))
+    candidates.sort(key=lambda z:(z[0],-z[1]),reverse=True)
+    out=[]; seen=set()
+    for _,_,x in candidates:
+        key=(x["year"],x["gamme"],x["model"],x["motorisation"])
+        if key not in seen:
+            seen.add(key); out.append(x)
     return out[:5]
 
 def model_match_score(text,model):
