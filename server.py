@@ -132,7 +132,7 @@ def dica_near_matches(brand,model,year,km,hp=None,options_value_total=0):
         year_gap=abs(r["year"]-year)
         if year_gap>2: continue
         rm=r["model_norm"]; rg=norm(r.get("gamme",""))
-        if not dica_model_match(m, r.get("model",""), r.get("gamme","")): continue
+        if not dica_model_match(model, r.get("model",""), r.get("gamme","")): continue
         rhp=motor_hp(r.get("motorisation",""))
         if hp is not None and rhp != hp: continue
         ref=max(0,(DICA_EDITION_YEAR-r["year"])*DICA_REF_KM_PER_YEAR)
