@@ -87,23 +87,30 @@ def options_value(options):
         total+=value
     return total,details
 
+def dica_model_match(target, record_model, record_gamme=""):
+    t=norm(target)
+    rm=norm(record_model)
+    rg=norm(record_gamme)
+    if not t or not rm:
+        return False
+    composite=norm(f"{record_gamme} {record_model}")
+    if t==rm or t==composite:
+        return True
+    tt=set(re.findall(r"[a-z0-9]+",t))
+    rt=set(re.findall(r"[a-z0-9]+",rm))
+    ct=set(re.findall(r"[a-z0-9]+",composite))
+    if tt and rt and (tt<=rt or rt<=tt):
+        return True
+    if tt and ct and tt<=ct:
+        return True
+    return False
+
 def dica_matches(brand,model,year,km,hp=None,options_value_total=0):
     b,m=norm(brand),norm(model); ref=max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR); out=[]
     for r in DICA:
         if r["year"]!=year or r["brand_norm"]!=b: continue
         rm=r["model_norm"]; rg=norm(r.get("gamme",""))
-        composite=norm(f"{r.get('gamme','')} {r.get('model','')}")
-        if m==rm:
-            model_ok=True
-        elif m==composite:
-            model_ok=True
-        elif rg and rg in m and rm in m:
-            model_ok=True
-        elif not rg and (rm in m or m in rm):
-            model_ok=True
-        else:
-            model_ok=False
-        if not model_ok: continue
+        if not dica_model_match(m, r.get("model",""), r.get("gamme","")): continue
         rhp=motor_hp(r.get("motorisation",""))
         if hp is not None and rhp is not None and rhp != hp: continue
         if km>ref: corr=(km-ref)*DICA_OVER_KM_RATE; rev=r["revente"]-corr
@@ -120,9 +127,7 @@ def dica_near_matches(brand,model,year,km,hp=None,options_value_total=0):
         year_gap=abs(r["year"]-year)
         if year_gap>2: continue
         rm=r["model_norm"]; rg=norm(r.get("gamme",""))
-        composite=norm(f"{r.get('gamme','')} {r.get('model','')}")
-        model_ok=(rm==m or rm in m or m in rm or composite==m or composite in m or (rg and rg in m and rm in m))
-        if not model_ok: continue
+        if not dica_model_match(m, r.get("model",""), r.get("gamme","")): continue
         rhp=motor_hp(r.get("motorisation",""))
         if hp is not None and rhp != hp: continue
         ref=max(0,(DICA_EDITION_YEAR-r["year"])*DICA_REF_KM_PER_YEAR)
