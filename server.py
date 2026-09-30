@@ -1,246 +1,111 @@
-import os, re, statistics, requests
+import os, re, statistics, json, requests
 from flask import Flask, request, jsonify, send_from_directory
 
 app = Flask(__name__, static_folder="static")
-
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY", "")
-
-def norm(s):
-    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
-
-def score_result(r, brand, model, year, target_km):
-    title = r.get("title", "")
-    snippet = r.get("snippet", "")
-    text = f"{title} {snippet}".lower()
-    
-    generic_words = [
-        "cotations",
-        "cotation",
-        "tarifs",
-        "tous les tarifs",
-        "prix des",
-        "guide",
-        "catalogue"
-    ]
-    new_words = [
-        "neuf",
-        "neuve",
-        "0 km",
-        "jamais immatriculé",
-        "jamais immatricule",
-        "véhicule neuf",
-        "stock neuf",
-        "déstockage"
-    ]
-
-    if any(word in title.lower() for word in new_words):
-        return 0
-    
-    if any(word in title.lower() for word in generic_words):
-        return 0
-    score = 0
-
-    if norm(brand) in norm(title):
-        score += 25
-    elif norm(brand) in norm(text):
-        score += 10
-
-    model_norm = norm(model)
-    title_norm = norm(title)
-    text_norm = norm(text)
-
-    # Le modèle exact doit apparaître dans le titre
-    if model_norm in title_norm:
-        score += 55
-    else:
-        return 0
-
-    if str(year) in title:
-        score += 15
-    elif str(year) in text:
-        score += 5
-
-    kms = [
-        int(re.sub(r"\D", "", x))
-        for x in re.findall(
-            r"\b\d{1,3}(?:[ .]\d{3})?\s*km\b",
-            text
-        )
-    ]
-
-    if kms:
-        d = min(abs(k - target_km) for k in kms)
-        score += max(0, 10 - min(10, d / 5000))
-
-    return score
-
+DICA_EDITION_YEAR = 2026
+DICA_REF_KM_PER_YEAR = 12000
+DICA_OVER_KM_RATE = 0.20
+DICA_UNDER_KM_RATE = 0.10
+DICA_REPRISE_FACTOR = 0.85
+MASTERS_FRAIS = 8000
+BASE_DIR = os.path.dirname(__file__)
+with open(os.path.join(BASE_DIR, "dica32_camping_cars.json"), encoding="utf-8") as f:
+    DICA = json.load(f)["records"]
+NEW_WORDS=("neuf","neuve","0 km","0km","jamais immatriculé","jamais immatricule","véhicule neuf","vehicule neuf","stock neuf","déstockage","destockage")
+AGGREGATOR_WORDS=("page 2","page 3","page 4","page 5","tous les véhicules","toutes les annonces","résultats de recherche","resultats de recherche","annonces similaires")
+def norm(s): return re.sub(r"[^a-z0-9]","",(s or "").lower())
+def clean_num(v): return int(re.sub(r"[^0-9]","",str(v)))
+def extract_kms(text):
+    out=[]
+    for m in re.finditer(r"\b(\d{1,3}(?:[ .]\d{3})|\d{3,6})\s*km\b",text.lower()):
+        try:
+            v=clean_num(m.group(1))
+            if 0<=v<=300000: out.append(v)
+        except ValueError: pass
+    return out
+def extract_prices(text):
+    out=[]
+    for p in [r"(\d{2,3}(?:[ .]\d{3})+|\d{4,6})\s*€",r"€\s*(\d{2,3}(?:[ .]\d{3})+|\d{4,6})"]:
+        for m in re.finditer(p,text):
+            try:
+                v=clean_num(m.group(1))
+                if 10000<=v<=150000 and v not in out: out.append(v)
+            except ValueError: pass
+    return out
 def parse_price_km(r):
-    text = f"{r.get('title','')} {r.get('snippet','')}"
-    prices = []
-
-    for m in re.findall(
-        r"(\d{2,3}(?:[ .]\d{3})+|\d{4,6})\s*€", text
-    ):
-        try:
-            v = int(m.replace(" ", "").replace(".", ""))
-            if 10000 <= v <= 150000:
-                prices.append(v)
-        except:
-            pass
-
-    kms = []
-
-    for m in re.findall(
-        r"(\d{1,3}(?:[ .]\d{3})+|\d{3,6})\s*km",
-        text.lower()
-    ):
-        try:
-            v = int(m.replace(" ", "").replace(".", ""))
-            if 0 <= v <= 300000:
-                kms.append(v)
-        except:
-            pass
-
-    return (
-        prices[0] if prices else None,
-        kms[0] if kms else None
-    )
-
+    text=f"{r.get('title','')} {r.get('snippet','')}"
+    ps=extract_prices(text); ks=extract_kms(text)
+    return (ps[0] if ps else None),(ks[0] if ks else None)
+def dica_matches(brand,model,year,km):
+    b,m=norm(brand),norm(model); ref=max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR); out=[]
+    for r in DICA:
+        if r["year"]!=year or r["brand_norm"]!=b: continue
+        rm=r["model_norm"]
+        if not (rm==m or rm in m or m in rm): continue
+        if km>ref: corr=(km-ref)*DICA_OVER_KM_RATE; rev=r["revente"]-corr
+        else: corr=(ref-km)*DICA_UNDER_KM_RATE; rev=r["revente"]+corr
+        rev=round(rev)
+        out.append({"year":r["year"],"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":rev,"reprise_corrigee":round(rev*DICA_REPRISE_FACTOR),"page":r["page"]})
+    return out
+def model_match_score(text,model):
+    raw=(text or "").lower(); model=(model or "").strip().lower()
+    if not model:return 0
+    if re.fullmatch(r"\d+",model): return 48 if re.search(rf"(?<!\d){re.escape(model)}(?!\d)",raw) else 0
+    compact=norm(model); compact_text=norm(raw)
+    if compact and compact in compact_text:return 48
+    parts=[p for p in re.split(r"[\s/-]+",model) if len(p)>=2]
+    return 48 if parts and all(p in raw for p in parts) else 0
+def score_result(r,brand,model,year,target_km):
+    text=f"{r.get('title','')} {r.get('snippet','')}"; low=text.lower(); score=0
+    if norm(brand) in norm(low): score+=30
+    score+=model_match_score(low,model)
+    if re.search(rf"\b{re.escape(str(year))}\b",low): score+=22
+    ks=extract_kms(text)
+    if ks:
+        d=min(abs(k-target_km) for k in ks); score+=max(0,10-min(10,d/5000))
+    return score
+def is_new(r):
+    text=f"{r.get('title','')} {r.get('snippet','')}".lower()
+    return any(w in text for w in NEW_WORDS) or bool(re.search(r"\b0\s*km\b",text))
+def is_aggregation(r):
+    text=f"{r.get('title','')} {r.get('snippet','')}".lower(); return any(w in text for w in AGGREGATOR_WORDS)
+def comparable_row(r,brand,model,year,target_km):
+    price,rkm=parse_price_km(r); score=score_result(r,brand,model,year,target_km)
+    if not price or score<70 or is_new(r): return None
+    if is_aggregation(r): score-=10
+    adjusted=price; km_adjustment=0
+    if rkm is not None:
+        if rkm>target_km: km_adjustment=round((rkm-target_km)*DICA_OVER_KM_RATE)
+        elif rkm<target_km: km_adjustment=-round((target_km-rkm)*DICA_UNDER_KM_RATE)
+        adjusted=price+km_adjustment
+    return {"title":r.get("title"),"url":r.get("link"),"snippet":r.get("snippet"),"price":price,"km":rkm,"adjusted":round(adjusted),"km_adjustment":km_adjustment,"score":round(score),"source":r.get("source","")}
 @app.get("/")
-def home():
-    return send_from_directory("static", "index.html")
-
+def home(): return send_from_directory("static","index.html")
 @app.post("/api/cote")
 def cote():
-    data = request.get_json(force=True)
-
-    brand = data.get("brand", "").strip()
-    model = data.get("model", "").strip()
-    year = int(data.get("year"))
-    km = int(data.get("km"))
-
-    if not SERPER_API_KEY:
-        return jsonify({
-            "error": "SERPER_API_KEY manquante sur le serveur."
-        }), 500
-
-    queries = [
-        f'"{brand} {model}" {year} camping-car occasion',
-        f'"{brand} {model}" {year} {km} km',
-        f'site:leboncoin.fr "{brand} {model}" {year}',
-        f'site:paruvendu.fr "{brand} {model}" {year}',
-        f'site:hunyvers.com "{brand} {model}" {year}',
-    ]
-
-    results = []
-
+    data=request.get_json(force=True); brand=str(data.get("brand","")).strip(); model=str(data.get("model","")).strip()
+    try: year=int(data.get("year")); km=int(data.get("km"))
+    except (TypeError,ValueError): return jsonify({"error":"Année et kilométrage invalides."}),400
+    if not brand or not model or year<2010 or km<0: return jsonify({"error":"Merci de renseigner une marque, un modèle, une année et un kilométrage valides."}),400
+    if not SERPER_API_KEY: return jsonify({"error":"SERPER_API_KEY manquante sur le serveur."}),500
+    dica=dica_matches(brand,model,year,km)
+    queries=[f'"{brand} {model}" {year} camping-car occasion',f'"{brand} {model}" {year} "{km} km" occasion',f'"{brand} {model}" {year} camping car occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
+    results=[]
     for q in queries:
-        resp = requests.post(
-            "https://google.serper.dev/search",
-            headers={
-                "X-API-KEY": SERPER_API_KEY,
-                "Content-Type": "application/json"
-            },
-            json={
-                "q": q,
-                "gl": "fr",
-                "hl": "fr",
-                "num": 10
-            },
-            timeout=20
-        )
-
-        resp.raise_for_status()
-
-        for x in resp.json().get("organic", []):
-            results.append(x)
-
-    uniq = {}
-
-    for r in results:
-        if r.get("link"):
-            uniq[r["link"]] = r
-
-    rows = []
-
+        try:
+            resp=requests.post("https://google.serper.dev/search",headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},json={"q":q,"gl":"fr","hl":"fr","num":10},timeout=20); resp.raise_for_status()
+            for item in resp.json().get("organic",[]): item["source"]=q; results.append(item)
+        except requests.RequestException: continue
+    uniq={r["link"]:r for r in results if r.get("link")}; rows=[]; context=[]
     for r in uniq.values():
-        price, rkm = parse_price_km(r)
-        sc = score_result(r, brand, model, year, km)
-
-        if price and sc >= 55:
-            adj = price
-
-            if rkm is not None:
-                adj = price + ((rkm - km) * 0.12)
-
-            texte_annonce = f"{r.get('title', '')} {r.get('snippet', '')}"
-            annee_annonce = re.search(r"\b(20\d{2})\b", texte_annonce)
-
-            if annee_annonce:
-                annee_annonce = int(annee_annonce.group(1))
-                ecart_annee = year - annee_annonce
-                correction_annee = max(-0.12, min(0.12, ecart_annee * 0.04))
-                adj = adj * (1 + correction_annee)
-
-            rows.append({
-                "title": r.get("title"),
-                "url": r.get("link"),
-                "snippet": r.get("snippet"),
-                "price": price,
-                "km": rkm,
-                "adjusted": round(adj),
-                "score": round(sc)
-                })
-
-    rows.sort(
-        key=lambda x: x["score"],
-        reverse=True
-    )
-
-    rows = rows[:15]
-
-    vals = [
-        x["adjusted"]
-        for x in rows
-        if x["adjusted"]
-    ]
-
-    if len(vals) <2:
-        return jsonify({
-            "status": "insufficient",
-            "comparables": rows,
-            "message": "Moins de 2 comparables suffisamment fiables."
-        })
-
-    med = statistics.median(vals)
-
-    if len(vals) >= 5:
-        filt = [
-            v for v in vals
-            if med * 0.88 <= v <= med * 1.12
-        ]
-    else:
-        filt = vals
-
-    market = round(
-        statistics.median(filt) / 100
-    ) * 100
-
-    return jsonify({
-        "status": "ok",
-        "comparables": rows,
-        "market": market,
-        "trade": max(0, market - 8000),
-        "confidence": (
-            "Bonne" if len(filt) >= 7
-            else "Correcte" if len(filt) >= 5
-            else "Faible"
-        ),
-        "count": len(filt)
-    })
-
-if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", "8080"))
-    )
+        row=comparable_row(r,brand,model,year,km)
+        if not row: continue
+        (context if row["km"] is None else rows).append(row)
+    rows.sort(key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True); context.sort(key=lambda x:x["score"],reverse=True)
+    primary=rows[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
+    if len(values)<3: primary=(primary+context)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
+    if len(values)<3: return jsonify({"status":"insufficient","comparables":primary,"context":context[:5],"dica":dica,"message":"Moins de 3 comparables suffisamment fiables ont été trouvés sur le marché actuel."})
+    med=statistics.median(values); filtered=[v for v in values if med*.88<=v<=med*1.12] if len(values)>=5 else values; market=round(statistics.median(filtered)/100)*100
+    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":"Bonne" if len(filtered)>=7 else "Correcte" if len(filtered)>=5 else "Faible","count":len(filtered),"dica":dica,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
