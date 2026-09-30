@@ -60,7 +60,14 @@ def extract_hp(text):
     return out
 def motor_hp(motorisation):
     vals=extract_hp(motorisation)
-    return vals[0] if vals else None
+    if vals:
+        return vals[0]
+    parts=str(motorisation or "").strip().split()
+    if parts and parts[-1].isdigit():
+        v=int(parts[-1])
+        if 50<=v<=500:
+            return v
+    return None
 def options_value(options):
     total=0
     details=[]
