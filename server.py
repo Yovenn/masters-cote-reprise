@@ -138,10 +138,13 @@ def dica_model_match(target, record_model, record_gamme=""):
         return True
     return False
 
-def dica_matches(brand,model,year,km,hp=None,options_value_total=0):
+def dica_matches(brand,model,year,km,hp=None,options_value_total=0,category="camping"):
     b,m=norm(brand),norm(model); ref=dica_ref_km(year, None); out=[]
     for r in DICA:
         if r["year"]!=year or r["brand_norm"]!=b: continue
+        if category=="van" and r.get("type")!="V": continue
+        if category=="fourgon" and r.get("type")!="F": continue
+        if category=="camping" and r.get("type") in ("F","V"): continue
         rm=r["model_norm"]; rg=norm(r.get("gamme",""))
         if not dica_model_match(model, r.get("model",""), r.get("gamme","")): continue
         ref=dica_ref_km(r["year"], r.get("type"))
@@ -152,11 +155,14 @@ def dica_matches(brand,model,year,km,hp=None,options_value_total=0):
         rev=round(rev)
         out.append({"year":r["year"],"horsepower":rhp,"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":rev,"reprise_corrigee":round(rev*DICA_REPRISE_FACTOR),"options_value":options_value_total,"revente_avec_options":round(rev+options_value_total),"reprise_avec_options":round(rev*DICA_REPRISE_FACTOR+options_value_total),"page":r["page"]})
     return out
-def dica_near_matches(brand,model,year,km,hp=None,options_value_total=0):
+def dica_near_matches(brand,model,year,km,hp=None,options_value_total=0,category="camping"):
     b,m=norm(brand),norm(model)
     candidates=[]
     for r in DICA:
         if r["brand_norm"]!=b: continue
+        if category=="van" and r.get("type")!="V": continue
+        if category=="fourgon" and r.get("type")!="F": continue
+        if category=="camping" and r.get("type") in ("F","V"): continue
         year_gap=abs(r["year"]-year)
         if year_gap>2: continue
         rm=r["model_norm"]; rg=norm(r.get("gamme",""))
@@ -228,19 +234,21 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None):
 def home(): return send_from_directory("static","index.html")
 @app.post("/api/cote")
 def cote():
-    data=request.get_json(force=True); brand=str(data.get("brand","")).strip(); model=str(data.get("model","")).strip()
+    data=request.get_json(force=True); category=str(data.get("category","camping")).strip().lower(); brand=str(data.get("brand","")).strip(); model=str(data.get("model","")).strip()
     cv_raw=str(data.get("cv","")).strip()
     hp_raw=str(data.get("hp","")).strip(); transmission=str(data.get("transmission","")).strip() or None
     try: year=int(data.get("year")); km=int(data.get("km")); cv=int(cv_raw) if cv_raw else None; hp=int(hp_raw) if hp_raw else None
     except (TypeError,ValueError): return jsonify({"error":"Année et kilométrage invalides."}),400
+    if category not in ("camping","van","fourgon"): return jsonify({"error":"Catégorie invalide."}),400
     if not brand or not model or year<2010 or km<0 or (cv is not None and (cv<1 or cv>50)) or (hp is not None and (hp<50 or hp>500)) or (transmission not in (None,"Automatique","Manuelle")): return jsonify({"error":"Merci de renseigner des informations valides."}),400
     if not SERPER_API_KEY: return jsonify({"error":"SERPER_API_KEY manquante sur le serveur."}),500
     accessories=data.get("accessories") or []
     options_total, option_details=options_value(accessories)
-    dica=dica_matches(brand,model,year,km,hp,options_total)
+    dica=dica_matches(brand,model,year,km,hp,options_total,category)
     hp_query=f" {hp} ch" if hp else ""
     transmission_query=f" {transmission.lower()}" if transmission else ""
-    queries=[f'"{brand} {model}" {year}{hp_query}{transmission_query} camping-car occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" occasion',f'"{brand} {model}" {year} camping car occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
+    market_term="camping-car" if category=="camping" else ("fourgon aménagé" if category=="fourgon" else "van aménagé")
+    queries=[f'"{brand} {model}" {year}{hp_query}{transmission_query} {market_term} occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" occasion',f'"{brand} {model}" {year} {market_term} occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
     results=[]
     for q in queries:
         try:
@@ -262,7 +270,7 @@ def cote():
     transmission_fallback=bool(transmission and len(matching_rows)<3)
     primary=(matching_rows if not transmission_fallback else rows)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
     if len(values)<3: primary=(primary+context)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
-    if len(values)<3: return jsonify({"status":"insufficient","comparables":primary,"context":context[:5],"dica":dica,"message":"Moins de 3 comparables suffisamment fiables ont été trouvés sur le marché actuel."})
+    if len(values)<3: return jsonify({"status":"insufficient","category":category,"category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car"),"comparables":primary,"context":context[:5],"dica":dica,"message":"Moins de 3 comparables suffisamment fiables ont été trouvés sur le marché actuel."})
     med=statistics.median(values)
     filtered_values=list(values)
     excluded_values=[]
@@ -286,7 +294,7 @@ def cote():
     for row in primary:
         row["retenu_dans_cote"]=row["adjusted"] in filtered
         row["atypique"]=row["adjusted"] in excluded_values
-    dica_near=dica_near_matches(brand,model,year,km,hp,options_total) if not dica else []
+    dica_near=dica_near_matches(brand,model,year,km,hp,options_total,category) if not dica else []
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
     transmission_gap=None
     transmission_counts={"Automatique":0,"Manuelle":0,"Inconnue":0}
@@ -304,5 +312,5 @@ def cote():
     if len(dica)==1:
         experimental_market_gap=round(market-dica[0]["revente_corrigee"])
         experimental_professional_value=round(dica[0]["reprise_corrigee"] + (experimental_market_gap*DICA_RECALAGE_FACTOR))
-    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"transmission":transmission,"transmission_fallback":transmission_fallback,"transmission_counts":transmission_counts,"transmission_gap":transmission_gap,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_ambiguous":len(dica)>1,"dica_near":dica_near,"quality":{"comparables":len(filtered),"atypiques":len(excluded_values),"transmission_fallback":transmission_fallback,"km_comparables":sum(1 for x in primary if x.get("km") is not None),"sans_km":len(context)},"experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":experimental_market_gap,"experimental_professional_value":experimental_professional_value,"accessories":option_details,"accessories_value":options_total,"dica_reference_km":(dica[0]["reference_km"] if dica else (dica_near[0]["reference_km"] if dica_near else dica_ref_km(year,None))),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    return jsonify({"status":"ok","category":category,"category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car"),"comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"transmission":transmission,"transmission_fallback":transmission_fallback,"transmission_counts":transmission_counts,"transmission_gap":transmission_gap,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_ambiguous":len(dica)>1,"dica_near":dica_near,"quality":{"comparables":len(filtered),"atypiques":len(excluded_values),"transmission_fallback":transmission_fallback,"km_comparables":sum(1 for x in primary if x.get("km") is not None),"sans_km":len(context)},"experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":experimental_market_gap,"experimental_professional_value":experimental_professional_value,"accessories":option_details,"accessories_value":options_total,"dica_reference_km":(dica[0]["reference_km"] if dica else (dica_near[0]["reference_km"] if dica_near else dica_ref_km(year,None))),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
