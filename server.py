@@ -73,8 +73,12 @@ for _year in range(2016, 2026):
         continue
 _dica_vf = {"records": _dica_vf_records}
 DICA_PL = []
-for _year in range(2016, 2026):
-    _path = os.path.join(BASE_DIR, "data", f"dica32_poids_lourds_{_year}.json")
+import glob
+for _path in sorted(glob.glob(os.path.join(BASE_DIR, "data", "dica32_poids_lourds_*.json"))):
+    _m = re.search(r"dica32_poids_lourds_(20\\d{2})", os.path.basename(_path))
+    if not _m:
+        continue
+    _year = int(_m.group(1))
     try:
         with open(_path, encoding="utf-8") as f:
             _rows = json.load(f)
