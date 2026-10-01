@@ -222,7 +222,16 @@ def model_match_score(text,model):
     if not model:return 0
     if re.fullmatch(r"\d+",model): return 48 if re.search(rf"(?<!\d){re.escape(model)}(?!\d)",raw) else 0
     compact=norm(model); compact_text=norm(raw)
-    if compact and compact in compact_text:return 48
+    if compact and compact in compact_text:
+        # Une finition voisine ne doit pas être assimilée au modèle demandé.
+        # Exemple : 600 SPB != 600 SPB Family / Plus / Supreme.
+        variant_words={"family","plus","supreme","supreme","sport","sports","elite","maxi","premium","edition","limited","exclusive"}
+        m=re.search(rf"(?<![a-z0-9]){re.escape(compact)}(?![a-z0-9])",compact_text)
+        if m:
+            tail=compact_text[m.end():].strip().split()
+            if tail and tail[0] in variant_words:
+                return 0
+            return 48
     parts=[p for p in re.split(r"[\s/-]+",model) if len(p)>=2]
     return 48 if parts and all(p in raw for p in parts) else 0
 def score_result(r,brand,model,year,target_km,hp=None,transmission=None):
