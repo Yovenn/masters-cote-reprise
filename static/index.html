@@ -244,6 +244,15 @@ function updateCategoryUI(){
   var title=document.getElementById('vehicleTitle');
   if(title)title.textContent=cat==='van'?'Évaluer un van aménagé':cat==='fourgon'?'Évaluer un fourgon aménagé':'Évaluer un camping-car';
 }
+window.addEventListener('load',function(){
+  var c=document.getElementById('category'),y=document.getElementById('year'),b=document.getElementById('brand'),m=document.getElementById('model');
+  if(c)c.addEventListener('change',async function(){updateCategoryUI();try{await dicaCategoryChanged();}catch(e){console.error(e);}});
+  if(y)y.addEventListener('change',async function(){try{await dicaYearChanged();}catch(e){console.error(e);}});
+  if(b)b.addEventListener('change',async function(){try{await dicaBrandChanged();}catch(e){console.error(e);}});
+  if(m)m.addEventListener('change',function(){dicaModelChanged();});
+  updateCategoryUI();
+  dicaCategoryChanged().catch(function(e){console.error(e);});
+});
 function vehicleRisk(d){
   var score=0,notes=[];
   if((d.count||0)<5){score+=2;notes.push("peu de comparables")}
