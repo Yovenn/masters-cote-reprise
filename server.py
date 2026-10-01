@@ -479,6 +479,65 @@ def dica_catalog():
     rows.sort(key=lambda x:(x["brand"],x["gamme"],x["model"],x["motorisation"]))
     return jsonify({"category":category,"year":year,"count":len(rows),"records":rows})
 
+@app.get("/api/dica/years")
+def dica_years():
+    category=str(request.args.get("category","camping")).strip().lower()
+    if category not in ("camping","van","fourgon"):
+        return jsonify({"error":"Catégorie invalide."}),400
+    years=sorted({
+        int(r.get("year")) for r in DICA
+        if r.get("year") is not None
+        and ((category=="van" and r.get("type")=="V") or
+             (category=="fourgon" and r.get("type")=="F") or
+             (category=="camping" and r.get("type") not in ("F","V")))
+    }, reverse=True)
+    return jsonify({"category":category,"years":years})
+
+@app.get("/api/dica/brands")
+def dica_brands():
+    category=str(request.args.get("category","camping")).strip().lower()
+    year_raw=str(request.args.get("year","")).strip()
+    if category not in ("camping","van","fourgon") or not year_raw.isdigit():
+        return jsonify({"error":"Paramètres invalides."}),400
+    year=int(year_raw)
+    brands=sorted({
+        r.get("brand","") for r in DICA
+        if r.get("year")==year and r.get("brand")
+        and ((category=="van" and r.get("type")=="V") or
+             (category=="fourgon" and r.get("type")=="F") or
+             (category=="camping" and r.get("type") not in ("F","V")))
+    }, key=lambda x:x.lower())
+    return jsonify({"category":category,"year":year,"brands":brands})
+
+@app.get("/api/dica/models")
+def dica_models():
+    category=str(request.args.get("category","camping")).strip().lower()
+    year_raw=str(request.args.get("year","")).strip()
+    brand=str(request.args.get("brand","")).strip()
+    if category not in ("camping","van","fourgon") or not year_raw.isdigit() or not brand:
+        return jsonify({"error":"Paramètres invalides."}),400
+    year=int(year_raw)
+    rows=[]
+    seen=set()
+    for r in DICA:
+        if r.get("year")!=year or norm(r.get("brand",""))!=norm(brand):
+            continue
+        if category=="van" and r.get("type")!="V": continue
+        if category=="fourgon" and r.get("type")!="F": continue
+        if category=="camping" and r.get("type") in ("F","V"): continue
+        key=(r.get("gamme",""),r.get("model",""),r.get("motorisation",""))
+        if key in seen: continue
+        seen.add(key)
+        rows.append({
+            "gamme":r.get("gamme",""),"model":r.get("model",""),
+            "motorisation":r.get("motorisation",""),
+            "neuf":r.get("neuf"),"revente":r.get("revente"),
+            "reprise":r.get("reprise"),"page":r.get("page"),
+            "type":r.get("type","")
+        })
+    rows.sort(key=lambda x:(x["gamme"],x["model"],x["motorisation"]))
+    return jsonify({"category":category,"year":year,"brand":brand,"records":rows})
+
 @app.post("/api/cote")
 def cote():
     data=request.get_json(force=True); category=str(data.get("category","camping")).strip().lower(); brand=str(data.get("brand","")).strip(); model=str(data.get("model","")).strip(); dica_gamme=str(data.get("dica_gamme","")).strip()
