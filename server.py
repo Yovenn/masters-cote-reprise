@@ -109,19 +109,26 @@ def options_value(options):
         total+=value
     return total,details
 
+def dica_model_key(s):
+    # Neutralise uniquement les qualificatifs de transmission souvent ajoutés
+    # au modèle dans les annonces : MC4 262 Matic -> MC4 262.
+    raw=unicodedata.normalize("NFKD", str(s or "")).encode("ascii","ignore").decode("ascii").lower()
+    raw=re.sub(r"\\b(?:matic|bva|bvm|automatique|automatic|auto)\\b"," ",raw)
+    return re.sub(r"\\s+"," ",raw).strip()
+
 def dica_model_match(target, record_model, record_gamme=""):
-    t_raw=str(target or "").lower()
-    rm_raw=str(record_model or "").lower()
-    rg_raw=str(record_gamme or "").lower()
-    t=norm(target)
-    rm=norm(record_model)
+    t_raw=dica_model_key(target)
+    rm_raw=dica_model_key(record_model)
+    rg_raw=dica_model_key(record_gamme)
+    t=norm(t_raw)
+    rm=norm(rm_raw)
     if not t or not rm:
         return False
-    composite=norm(f"{record_gamme} {record_model}")
+    composite=norm(f"{rg_raw} {rm_raw}")
     if t==rm or t==composite:
         return True
     # Compare les vrais tokens avant la normalisation compacte.
-    # Exemple : "640 Titanium" doit matcher "Titanium Ultimate" + "640".
+    # Exemple : "640 Titanium" doit matcher une gamme contenant 640/Titanium.
     tt=set(re.findall(r"[a-z0-9]+",t_raw))
     rt=set(re.findall(r"[a-z0-9]+",rm_raw))
     ct=set(re.findall(r"[a-z0-9]+",f"{rg_raw} {rm_raw}"))
