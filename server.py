@@ -323,6 +323,36 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     return {"title":r.get("title"),"url":r.get("link"),"snippet":r.get("snippet"),"price":price,"km":rkm,"adjusted":round(adjusted),"km_adjustment":km_adjustment,"score":round(score),"source":r.get("source",""),"transmission":extract_transmission(text)}
 @app.get("/")
 def home(): return send_from_directory("static","index.html")
+@app.get("/api/dica/catalog")
+def dica_catalog():
+    category=str(request.args.get("category","camping")).strip().lower()
+    year_raw=str(request.args.get("year","")).strip()
+    brand_filter=str(request.args.get("brand","")).strip()
+    if category not in ("camping","van","fourgon"):
+        return jsonify({"error":"Catégorie invalide."}),400
+    year=int(year_raw) if year_raw.isdigit() else None
+    rows=[]
+    seen=set()
+    for r in DICA:
+        if year is not None and r.get("year")!=year:
+            continue
+        if category=="van" and r.get("type")!="V": continue
+        if category=="fourgon" and r.get("type")!="F": continue
+        if category=="camping" and r.get("type") in ("F","V"): continue
+        if brand_filter and norm(r.get("brand",""))!=norm(brand_filter):
+            continue
+        key=(r.get("year"),r.get("brand",""),r.get("gamme",""),r.get("model",""),r.get("motorisation",""),r.get("type",""))
+        if key in seen: continue
+        seen.add(key)
+        rows.append({
+            "year":r.get("year"),"brand":r.get("brand",""),"gamme":r.get("gamme",""),
+            "model":r.get("model",""),"motorisation":r.get("motorisation",""),
+            "type":r.get("type",""),"neuf":r.get("neuf"),"revente":r.get("revente"),
+            "reprise":r.get("reprise"),"page":r.get("page")
+        })
+    rows.sort(key=lambda x:(x["brand"],x["gamme"],x["model"],x["motorisation"]))
+    return jsonify({"category":category,"year":year,"count":len(rows),"records":rows})
+
 @app.post("/api/cote")
 def cote():
     data=request.get_json(force=True); category=str(data.get("category","camping")).strip().lower(); brand=str(data.get("brand","")).strip(); model=str(data.get("model","")).strip(); dica_gamme=str(data.get("dica_gamme","")).strip()
