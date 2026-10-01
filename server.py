@@ -505,7 +505,7 @@ def dica_menu_file():
 @app.get("/api/dica/years")
 def dica_years():
     category=str(request.args.get("category","camping")).strip().lower()
-    if category not in ("camping","van","fourgon"):
+    if category not in ("camping","poids_lourd","van","fourgon"):
         return jsonify({"error":"Catégorie invalide."}),400
     years=sorted({
         int(r.get("year")) for r in DICA
