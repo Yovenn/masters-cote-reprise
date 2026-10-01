@@ -2,6 +2,8 @@ import os, re, statistics, json, requests, unicodedata
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 
+BASE_DIR = os.path.dirname(__file__)
+
 app = Flask(__name__, static_folder="static")
 
 @app.errorhandler(Exception)
@@ -71,7 +73,6 @@ for _year in range(2016, 2026):
     except FileNotFoundError:
         continue
 _dica_vf = {"records": _dica_vf_records}
-BASE_DIR = os.path.dirname(__file__)
 DICA_PL = []
 import glob
 for _path in sorted(glob.glob(os.path.join(BASE_DIR, "data", "dica32_poids_lourds_*.json"))):
