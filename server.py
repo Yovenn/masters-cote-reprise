@@ -23,11 +23,19 @@ def dica_ref_km(year, type_):
 BASE_DIR = os.path.dirname(__file__)
 with open(os.path.join(BASE_DIR, "dica32_camping_cars.json"), encoding="utf-8") as f:
     _dica = json.load(f)
-try:
-    with open(os.path.join(BASE_DIR, "dica32_vans_fourgons.json"), encoding="utf-8") as f:
-        _dica_vf = json.load(f)
-except FileNotFoundError:
-    _dica_vf = {"records": []}
+_dica_vf_records = []
+for _year in range(2016, 2026):
+    _path = os.path.join(BASE_DIR, f"dica32_vans_fourgons_{_year}.json")
+    try:
+        with open(_path, encoding="utf-8") as f:
+            _year_data = json.load(f)
+        if isinstance(_year_data, list):
+            _dica_vf_records.extend(_year_data)
+        elif isinstance(_year_data, dict):
+            _dica_vf_records.extend(_year_data.get("records", []))
+    except FileNotFoundError:
+        continue
+_dica_vf = {"records": _dica_vf_records}
 DICA = []
 for row in (_dica["records"] + _dica_vf.get("records", [])):
     if isinstance(row, list):
