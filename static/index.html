@@ -184,19 +184,32 @@ async function dicaJson(url){
   if(!r.ok) throw new Error('Catalogue DICA indisponible ('+r.status+')');
   return await r.json();
 }
-function fillSelect(el,items,placeholder){
-  if(!el)return;
-  el.innerHTML='<option value="">'+placeholder+'</option>';
-  items.forEach(function(x){
-    var o=document.createElement('option');
-    o.value=x.value;o.textContent=x.label;
-    if(x.hp)o.dataset.hp=x.hp;
-    if(x.gamme)o.dataset.gamme=x.gamme;
-    if(x.motorisation)o.dataset.motorisation=x.motorisation;
-    el.appendChild(o);
-  });
+async function loadDicaCatalog(){
+  var cat=dicaCatalogKey();
+  if(__dicaCatalogCache[cat]) return __dicaCatalogCache[cat];
+  var records=[];
+  try{
+    var camping=await dicaJson('/dica32_camping_cars.json?v=20261001');
+    if(cat==='camping'){
+      records=(camping.records||[]).map(function(x){return {year:x[0],brand:x[1],gamme:x[2],model:x[3],motorisation:x[4],type:x[5],neuf:x[6],revente:x[7],reprise:x[8],page:x[9]}});
+    }else{
+      var urls=[];
+      for(var y=2016;y<=2025;y++) urls.push('/data/dica32_vans_fourgons_'+y+'.json?v=20261001');
+      var packs=await Promise.all(urls.map(function(u){return dicaJson(u).catch(function(){return []})}));
+      packs.forEach(function(pack){(Array.isArray(pack)?pack:[]).forEach(function(x){
+        records.push({year:x[0],brand:x[1],gamme:x[2],model:x[3],motorisation:x[4],type:x[5],neuf:x[6],revente:x[7],reprise:x[8],page:x[9]});
+      })});
+      records=records.filter(function(r){return cat==='van'?r.type==='V':r.type==='F'});
+    }
+    if(!records.length) throw new Error('Aucune référence DICA chargée');
+    __dicaCatalogCache[cat]=records;
+    return records;
+  }catch(e){
+    console.warn('Catalogue DICA direct:',e);
+    return [];
+  }
 }
-async function dicaCategoryChanged(){
+function dicaCategoryChanged(){
   var cat=dicaCatalogKey();
   try{
     var d=await dicaJson('/api/dica/years?category='+encodeURIComponent(cat));
