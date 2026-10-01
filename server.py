@@ -298,6 +298,55 @@ def is_unavailable(r):
 def is_aggregation(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower()
     return any(w in text for w in AGGREGATOR_WORDS)
+def experimental_brand_value(results, brand, year, category):
+    """Calcule un coefficient expérimental de marque à partir d'annonces rapprochées d'une référence DICA de la même marque/année/catégorie."""
+    candidates=[]
+    for ad in results:
+        if is_new(ad) or is_unavailable(ad) or is_aggregation(ad):
+            continue
+        price, km=parse_price_km(ad)
+        if not price:
+            continue
+        text=f"{ad.get('title','')} {ad.get('snippet','')}"
+        ad_years=extract_years(text)
+        if not ad_years or year not in ad_years:
+            continue
+        best=None
+        for r in DICA:
+            if r.get("year")!=year or r.get("brand_norm")!=norm(brand):
+                continue
+            if category=="van" and r.get("type")!="V": continue
+            if category=="fourgon" and r.get("type")!="F": continue
+            if category=="camping" and r.get("type") in ("F","V"): continue
+            ms=model_match_score(text, r.get("model",""))
+            if ms<=0:
+                continue
+            rhp=motor_hp(r.get("motorisation",""))
+            hps=extract_hp(text)
+            if hps and rhp and rhp not in hps:
+                continue
+            if best is None or ms > best[0]:
+                best=(ms,r)
+        if not best:
+            continue
+        dr=best[1]
+        ref=dica_ref_km(dr["year"],dr.get("type"))
+        if km is None:
+            corr_revente=dr["revente"]
+        elif km>ref:
+            corr_revente=dr["revente"]-(km-ref)*DICA_OVER_KM_RATE
+        else:
+            corr_revente=dr["revente"]+(ref-km)*DICA_UNDER_KM_RATE
+        if corr_revente<=0:
+            continue
+        ratio=price/corr_revente
+        if 0.45<=ratio<=1.35:
+            candidates.append({"ratio":ratio,"price":price,"dica_revente":round(corr_revente),"title":ad.get("title","")})
+    if len(candidates)<5:
+        return None
+    coef=statistics.median([x["ratio"] for x in candidates])
+    return {"coefficient":round(coef,3),"comparables":len(candidates),"examples":candidates[:5]}
+
 def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
     price,rkm=parse_price_km(r)
     text=f"{r.get('title','')} {r.get('snippet','')}"
@@ -394,24 +443,49 @@ def cote():
     # Les annonces sans kilométrage restent du contexte uniquement :
     # elles ne doivent jamais entrer dans la médiane ni permettre de fabriquer
     # une cote lorsqu'il n'y a pas assez de comparables qualifiés.
+    experimental_brand=None
     if len(values)<3:
+        brand_queries=[
+            f'"{brand}" {year} {market_term} occasion',
+            f'"{brand}" {year} {market_term} prix occasion',
+            f'site:leboncoin.fr "{brand}" {year} {market_term}',
+            f'site:camping-car.com "{brand}" {year}'
+        ]
+        brand_results=[]
+        for q in brand_queries:
+            try:
+                resp=requests.post("https://google.serper.dev/search",headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},json={"q":q,"gl":"fr","hl":"fr","num":10},timeout=20)
+                resp.raise_for_status()
+                for item in resp.json().get("organic",[]):
+                    item["source"]=q
+                    brand_results.append(item)
+            except requests.RequestException:
+                continue
+        brand_unique={x.get("link"):x for x in brand_results if x.get("link")}
+        experimental_brand=experimental_brand_value(list(brand_unique.values()),brand,year,category)
+        if experimental_brand and len(dica)==1:
+            resale=round(dica[0]["revente_corrigee"]*experimental_brand["coefficient"])
+            masters=max(0,resale-MASTERS_FRAIS)
+            return jsonify({
+                "status":"experimental",
+                "category":category,
+                "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car"),
+                "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],
+                "dica":dica,"dica_ambiguous":False,"dica_near":[],
+                "market":None,"market_low":None,"market_high":None,
+                "confidence":"Estimative","experimental_brand":experimental_brand,
+                "experimental_resale":resale,"experimental_professional_value":masters,
+                "trade":masters,"masters_frais":MASTERS_FRAIS,
+                "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback,"brand_comparables":experimental_brand["comparables"]},
+                "message":"Marché insuffisant pour établir une cote modèle. Valeur estimative calculée à partir d'un coefficient marché observé pour la marque, appliqué au prix supposé de revente DICA corrigé. Les 8 000 € Masters sont déduits du prix supposé de revente."
+            })
         return jsonify({
-            "status":"insufficient",
-            "category":category,
+            "status":"insufficient","category":category,
             "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car"),
-            "dica_gamme":dica_gamme,
-            "comparables":primary,
-            "context":context[:5],
-            "dica":dica,
+            "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],"dica":dica,
             "dica_ambiguous":len(dica)>1,
             "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if not dica else [],
-            "quality":{
-                "comparables":len(values),
-                "km_comparables":len(values),
-                "sans_km":len(context),
-                "atypiques":0,
-                "transmission_fallback":transmission_fallback
-            },
+            "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback},
             "message":"Cote marché non calculée : moins de 3 comparables qualifiés avec kilométrage ont été trouvés. Les annonces sans kilométrage restent affichées à titre de contexte uniquement."
         })
     med=statistics.median(values)
