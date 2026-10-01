@@ -599,7 +599,7 @@ def dica_models():
         seen.add(key)
         rows.append({
             "gamme":r.get("gamme",""),"model":r.get("model",""),
-            "motorisation":r.get("motorisation",""),
+            "motorisation":r.get("carrier",r.get("motorisation","")),
             "neuf":r.get("neuf"),"revente":r.get("revente"),
             "reprise":r.get("reprise"),"page":r.get("page"),
             "type":r.get("type","")
