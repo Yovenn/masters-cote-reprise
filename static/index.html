@@ -209,11 +209,12 @@ async function loadDicaCatalog(){
     return [];
   }
 }
-function dicaCategoryChanged(){
+async function dicaCategoryChanged(){
   var cat=dicaCatalogKey();
   try{
-    var d=await dicaJson('/api/dica/years?category='+encodeURIComponent(cat));
-    fillSelect(document.getElementById('year'),(d.years||[]).map(function(y){return {value:y,label:String(y)}}),'Choisir une année…');
+    var records=await loadDicaCatalog();
+    var years=[...new Set(records.map(function(r){return Number(r.year)}))].sort(function(a,b){return b-a});
+    fillSelect(document.getElementById('year'),years.map(function(y){return {value:y,label:String(y)}}),'Choisir une année…');
     fillSelect(document.getElementById('brand'),[],'Choisir une année…');
     fillSelect(document.getElementById('model'),[],'Choisir une année et une marque…');
     window.__catalogSelection=null;
@@ -223,33 +224,33 @@ function dicaCategoryChanged(){
   }
 }
 async function dicaYearChanged(){
-  var cat=dicaCatalogKey(),year=Number(document.getElementById('year').value);
+  var records=await loadDicaCatalog(),year=Number(document.getElementById('year').value);
   if(!year){
     fillSelect(document.getElementById('brand'),[],'Choisir une année…');
     fillSelect(document.getElementById('model'),[],'Choisir une année et une marque…');
     return;
   }
-  try{
-    var d=await dicaJson('/api/dica/brands?category='+encodeURIComponent(cat)+'&year='+encodeURIComponent(year));
-    fillSelect(document.getElementById('brand'),(d.brands||[]).map(function(b){return {value:b,label:b}}),'Choisir une marque…');
-    fillSelect(document.getElementById('model'),[],'Choisir une marque…');
-    document.getElementById('hp').value='';
-    window.__catalogSelection=null;
-  }catch(e){console.warn(e)}
+  var brands=[...new Set(records.filter(function(r){return Number(r.year)===year}).map(function(r){return r.brand}))].sort(function(a,b){return a.localeCompare(b,'fr')});
+  fillSelect(document.getElementById('brand'),brands.map(function(b){return {value:b,label:b}}),'Choisir une marque…');
+  fillSelect(document.getElementById('model'),[],'Choisir une marque…');
+  document.getElementById('hp').value='';
+  window.__catalogSelection=null;
 }
 async function dicaBrandChanged(){
-  var cat=dicaCatalogKey(),year=Number(document.getElementById('year').value),brand=document.getElementById('brand').value;
+  var records=await loadDicaCatalog(),year=Number(document.getElementById('year').value),brand=document.getElementById('brand').value;
   if(!year||!brand){fillSelect(document.getElementById('model'),[],'Choisir une année et une marque…');return}
-  try{
-    var d=await dicaJson('/api/dica/models?category='+encodeURIComponent(cat)+'&year='+encodeURIComponent(year)+'&brand='+encodeURIComponent(brand));
-    var models=(d.records||[]).map(function(r){
-      var hp=(r.motorisation||'').match(/(\d{2,3})\s*ch/i);
-      return {value:r.model||'',label:(r.gamme?(r.gamme+' · '):'')+(r.model||'')+(r.motorisation?' — '+r.motorisation:''),hp:hp?hp[1]:'',gamme:r.gamme||'',motorisation:r.motorisation||''};
-    });
-    fillSelect(document.getElementById('model'),models,'Choisir une référence DICA…');
-    document.getElementById('hp').value='';
-    window.__catalogSelection=null;
-  }catch(e){console.warn(e)}
+  var rows=records.filter(function(r){return Number(r.year)===year&&r.brand===brand});
+  var seen={},models=[];
+  rows.forEach(function(r){
+    var hp=(r.motorisation||'').match(/(\d{2,3})\s*ch/i);
+    var key=(r.gamme||'')+'|'+(r.model||'')+'|'+(r.motorisation||'');
+    if(seen[key])return;seen[key]=1;
+    models.push({value:r.model||'',label:(r.gamme?(r.gamme+' · '):'')+(r.model||'')+(r.motorisation?' — '+r.motorisation:''),hp:hp?hp[1]:'',gamme:r.gamme||'',motorisation:r.motorisation||''});
+  });
+  models.sort(function(a,b){return a.label.localeCompare(b.label,'fr')});
+  fillSelect(document.getElementById('model'),models,'Choisir une référence DICA…');
+  document.getElementById('hp').value='';
+  window.__catalogSelection=null;
 }
 function dicaModelChanged(){
   var sel=document.getElementById('model'), opt=sel&&sel.options[sel.selectedIndex];
