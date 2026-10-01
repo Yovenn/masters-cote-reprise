@@ -13,8 +13,8 @@ def api_safe_error(e):
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY", "")
 DICA_EDITION_YEAR = 2026
 DICA_REF_KM_PER_YEAR = 12000
-DICA_OVER_KM_RATE = 0.20
-DICA_UNDER_KM_RATE = 0.10
+DICA_OVER_KM_RATE = 0.12
+DICA_UNDER_KM_RATE = 0.09
 DICA_REPRISE_FACTOR = 0.85
 MASTERS_FRAIS = 8000
 DICA_RECALAGE_FACTOR = 0.50
@@ -57,7 +57,7 @@ for row in (_dica["records"] + _dica_vf.get("records", [])):
         row["brand_norm"] = norm(row.get("brand",""))
         row["model_norm"] = norm(row.get("model",""))
         DICA.append(row)
-NEW_WORDS=("neuf","neuve","0 km","0km","jamais immatriculé","jamais immatricule","véhicule neuf","vehicule neuf","stock neuf","déstockage","destockage")
+NEW_WORDS=("neuf","neuve","0 km","0km","jamais immatriculé","jamais immatricule","véhicule neuf","vehicule neuf","stock neuf","déstockage","destockage","non immatriculé","non immatricule","modèle neuf","modele neuf")
 AGGREGATOR_WORDS=("page 2","page 3","page 4","page 5","tous les véhicules","toutes les annonces","résultats de recherche","resultats de recherche","annonces similaires")
 def clean_num(v): return int(re.sub(r"[^0-9]","",str(v)))
 def extract_kms(text):
