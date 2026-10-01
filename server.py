@@ -224,13 +224,24 @@ def model_match_score(text,model):
     compact=norm(model); compact_text=norm(raw)
     if compact and compact in compact_text:
         # Une finition voisine ne doit pas être assimilée au modèle demandé.
-        # Exemple : 600 SPB != 600 SPB Family / Plus / Supreme.
+        # Les séries spéciales peuvent toutefois être formulées différemment
+        # dans les annonces : « 696F 60 Edition » / « 696F 60 anniversaire ».
         variant_words={"family","plus","supreme","sport","sports","elite","maxi","premium","edition","limited","exclusive","duo","xl","xs","l","s","m","g","gx","lj","sgx","slb","spb","4x4","60","anniversary","anniversaire"}
         m=re.search(rf"(?<![a-z0-9]){re.escape(compact)}(?![a-z0-9])",compact_text)
         if m:
             tail=compact_text[m.end():].strip().split()
             if tail and tail[0] in variant_words:
                 return 0
+            return 48
+    # Variante de formulation pour les séries spéciales : Edition / Anniversary /
+    # Anniversaire peuvent désigner la même série lorsqu'un identifiant commun
+    # (ex. 60) est explicitement présent. On conserve le modèle de base exact.
+    requested_tokens=set(re.findall(r"[a-z0-9]+",t_raw))
+    ad_tokens=set(re.findall(r"[a-z0-9]+",raw))
+    special_tokens={"edition","anniversary","anniversaire"}
+    if requested_tokens & {"60"} and "60" in ad_tokens and requested_tokens - special_tokens <= ad_tokens | special_tokens:
+        base_requested=requested_tokens-special_tokens
+        if base_requested and base_requested <= ad_tokens:
             return 48
     parts=[p for p in re.split(r"[\s/-]+",model) if len(p)>=2]
     return 48 if parts and all(p in raw for p in parts) else 0
