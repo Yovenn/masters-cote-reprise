@@ -177,20 +177,21 @@ function showHistory(){
 }
 function filterHistory(){var q=(document.getElementById('historySearch').value||'').toLowerCase();document.querySelectorAll('.history-item').forEach(function(e){e.style.display=!q||e.dataset.search.includes(q)?'block':'none'})}
 function newSearch(){document.getElementById('out').innerHTML='';document.getElementById('status').style.display='none';['brand','model','year','km','cv','hp','transmission','clientName','plate'].forEach(function(id){var el=document.getElementById(id);if(el)el.value=''});var cat=document.getElementById('category');if(cat){cat.value='camping';updateCategoryUI();}document.getElementById('accessories').innerHTML='';window.scrollTo({top:0,behavior:'smooth'});document.getElementById('brand').focus()}var __dicaCatalogCache={};
-var __dicaCatalogCache={};
 function dicaCatalogKey(){return document.getElementById('category')?.value||'camping'}
 async function loadDicaCatalog(){
   var cat=dicaCatalogKey();
   if(__dicaCatalogCache[cat]) return __dicaCatalogCache[cat];
   try{
-    var r=await fetch('dica_menu.json?v=20261001',{cache:'no-store'});
+    var r=await fetch('/api/dica/catalog?category='+encodeURIComponent(cat),{cache:'no-store'});
     if(!r.ok) throw new Error('Catalogue DICA indisponible ('+r.status+')');
     var d=await r.json();
-    var records=(d.records||[]).filter(function(x){return x.category===cat});
+    var records=Array.isArray(d.records)?d.records:[];
     __dicaCatalogCache[cat]=records;
     return records;
   }catch(e){
-    console.warn('Catalogue DICA:',e);
+    console.error('Catalogue DICA:',e);
+    var status=document.getElementById('status');
+    if(status){status.style.display='block';status.textContent='⚠️ Impossible de charger le catalogue DICA : '+e.message;}
     return [];
   }
 }
@@ -206,7 +207,7 @@ function fillSelect(el,items,placeholder){
     el.appendChild(o);
   });
 }
-async function dicaCategoryChanged(){
+function dicaCategoryChanged(){
   var records=await loadDicaCatalog();
   var years=[...new Set(records.map(function(r){return Number(r.year)}))].sort(function(a,b){return b-a});
   fillSelect(document.getElementById('year'),years.map(function(y){return {value:y,label:String(y)}}),'Choisir une année…');
