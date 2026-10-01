@@ -34,7 +34,7 @@ def poids_lourd_matches(brand, model, year, km, hp=None, ptac=None):
     for r in DICA_PL:
         if r["year"]!=year or r["brand_norm"]!=norm(brand): continue
         if not dica_model_match(model,r.get("model",""),""): continue
-        if ptac is not None and abs(float(r.get("ptac") or 0)-float(ptac))>0.15: continue
+        if ptac is not None and abs(float(r.get("ptac") or 0)-(float(ptac)/1000.0))>0.15: continue
         rhp=motor_hp(r.get("carrier",""))
         if hp is not None and rhp is not None and rhp!=hp: continue
         ref,over,under=poids_lourd_km_rules(r.get("carrier",""))
