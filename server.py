@@ -56,7 +56,6 @@ def norm(s):
 def dica_ref_km(year, type_):
     return max(0, (DICA_EDITION_YEAR-year) * DICA_REF_KM_BY_TYPE.get(str(type_ or "").upper(), DICA_REF_KM_PER_YEAR))
 
-BASE_DIR = os.path.dirname(__file__)
 with open(os.path.join(BASE_DIR, "dica32_camping_cars.json"), encoding="utf-8") as f:
     _dica = json.load(f)
 _dica_vf_records = []
@@ -72,6 +71,7 @@ for _year in range(2016, 2026):
     except FileNotFoundError:
         continue
 _dica_vf = {"records": _dica_vf_records}
+BASE_DIR = os.path.dirname(__file__)
 DICA_PL = []
 import glob
 for _path in sorted(glob.glob(os.path.join(BASE_DIR, "data", "dica32_poids_lourds_*.json"))):
