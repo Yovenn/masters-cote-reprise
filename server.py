@@ -140,9 +140,13 @@ def dica_model_match(target, record_model, record_gamme=""):
     tt=set(re.findall(r"[a-z0-9]+",t_raw))
     rt=set(re.findall(r"[a-z0-9]+",rm_raw))
     ct=set(re.findall(r"[a-z0-9]+",f"{rg_raw} {rm_raw}"))
-    if tt and rt and (tt<=rt or rt<=tt):
+    # Évite les faux positifs par sous-chaîne de modèle :
+    # « 600 SPB » ne doit pas sélectionner « 600 SPB Family ».
+    # Les variantes ne sont acceptées que si les tokens du modèle sont identiques,
+    # ou si la saisie correspond exactement à gamme + modèle.
+    if tt and rt and tt == rt:
         return True
-    if tt and ct and tt<=ct:
+    if tt and ct and tt == ct:
         return True
     return False
 
