@@ -234,7 +234,7 @@ def model_match_score(text,model):
             return 48
     parts=[p for p in re.split(r"[\s/-]+",model) if len(p)>=2]
     return 48 if parts and all(p in raw for p in parts) else 0
-def dica_gamme_score(text,brand,model,year,requested_gamme):
+def dica_gamme_score(text,brand,model,year,requested_gamme,category="camping"):
     requested=norm(requested_gamme)
     if not requested:
         return 0
@@ -242,6 +242,9 @@ def dica_gamme_score(text,brand,model,year,requested_gamme):
     for r in DICA:
         if r.get("brand_norm")!=norm(brand) or r.get("year")!=year:
             continue
+        if category=="van" and r.get("type")!="V": continue
+        if category=="fourgon" and r.get("type")!="F": continue
+        if category=="camping" and r.get("type") in ("F","V"): continue
         if not dica_model_match(model,r.get("model",""),r.get("gamme","")):
             continue
         g=norm(r.get("gamme",""))
@@ -261,7 +264,7 @@ def dica_gamme_score(text,brand,model,year,requested_gamme):
     # on l'écarte plutôt que de la faire entrer dans la cote de la gamme choisie.
     return -35
 
-def score_result(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None):
+def score_result(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
     title=str(r.get("title","")); snippet=str(r.get("snippet","")); text=f"{title} {snippet}"; low=text.lower(); score=0
     if norm(brand) in norm(low): score+=25
     model_score=model_match_score(low,model)
@@ -269,7 +272,7 @@ def score_result(r,brand,model,year,target_km,hp=None,transmission=None,dica_gam
         return 0
     score+=model_score
     if dica_gamme:
-        gamme_score=dica_gamme_score(text,brand,model,year,dica_gamme)
+        gamme_score=dica_gamme_score(text,brand,model,year,dica_gamme,category)
         if gamme_score<0:
             return 0
         score+=gamme_score
@@ -295,7 +298,7 @@ def is_unavailable(r):
 def is_aggregation(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower()
     return any(w in text for w in AGGREGATOR_WORDS)
-def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None):
+def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
     price,rkm=parse_price_km(r)
     text=f"{r.get('title','')} {r.get('snippet','')}"
     title_years=extract_years(str(r.get("title","")))
@@ -308,7 +311,7 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
         return None
     if not title_years and year not in snippet_years:
         return None
-    score=score_result(r,brand,model,year,target_km,hp,transmission,dica_gamme)
+    score=score_result(r,brand,model,year,target_km,hp,transmission,dica_gamme,category)
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
     if is_aggregation(r): score-=10
     if score<65: return None
@@ -351,7 +354,7 @@ def cote():
         if key[0]: dedup[key]=r
     rows=[]; context=[]
     for r in dedup.values():
-        row=comparable_row(r,brand,model,year,km,hp,transmission,dica_gamme)
+        row=comparable_row(r,brand,model,year,km,hp,transmission,dica_gamme,category)
         if not row: continue
         (context if row["km"] is None else rows).append(row)
     rows.sort(key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True); context.sort(key=lambda x:x["score"],reverse=True)
