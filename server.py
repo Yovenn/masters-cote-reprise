@@ -473,7 +473,7 @@ def dica_catalog():
     category=str(request.args.get("category","camping")).strip().lower()
     year_raw=str(request.args.get("year","")).strip()
     brand_filter=str(request.args.get("brand","")).strip()
-    if category not in ("camping","van","fourgon"):
+    if category not in ("camping","poids_lourd","van","fourgon"):
         return jsonify({"error":"Catégorie invalide."}),400
     year=int(year_raw) if year_raw.isdigit() else None
     rows=[]
