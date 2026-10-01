@@ -609,7 +609,7 @@ def cote():
             except requests.RequestException:
                 continue
         brand_unique={x.get("link"):x for x in brand_results if x.get("link")}
-        experimental_brand=experimental_brand_value(list(brand_unique.values()),brand,year,category,dica_gamme=dica_gamme,requested_model=model)
+        experimental_brand=experimental_brand_value(list(brand_unique.values()),brand,year,category,requested_gamme=dica_gamme,requested_model=model)
         if experimental_brand and len(dica)==1:
             resale=round(dica[0]["revente_corrigee"]*experimental_brand["coefficient"])
             masters=max(0,resale-MASTERS_FRAIS)
