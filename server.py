@@ -23,13 +23,25 @@ DICA_REF_KM_BY_TYPE = {"F":15000,"V":20000,"P":12000,"C":12000,"I":12000}
 
 
 def poids_lourd_km_rules(text):
-    """Règles kilométriques spécifiques à la Cote Poids-Lourds DICA."""
+    """Règles DICA PL n°32."""
     t=norm(text)
-    if "man" in t or "iveco" in t:
-        return 30000,1.00,0.50,5000
     if "tandem" in t or "6roues" in t or "6 roues" in (text or "").lower():
-        return 20000,1.00,0.50,5000
-    return None,None,None,5000
+        return 20000,0.50,0.25
+    return 25000,0.50,0.20
+
+def poids_lourd_matches(brand, model, year, km, hp=None, ptac=None):
+    out=[]
+    for r in DICA_PL:
+        if r["year"]!=year or r["brand_norm"]!=norm(brand): continue
+        if not dica_model_match(model,r.get("model",""),""): continue
+        if ptac is not None and abs(float(r.get("ptac") or 0)-float(ptac))>0.15: continue
+        rhp=motor_hp(r.get("carrier",""))
+        if hp is not None and rhp is not None and rhp!=hp: continue
+        ref,over,under=poids_lourd_km_rules(r.get("carrier",""))
+        corr=(km-ref)*over if km>ref else (ref-km)*under
+        value=round(r["revente"]-corr) if km>ref else round(r["revente"]+corr)
+        out.append({"year":r["year"],"brand":r["brand"],"model":r["model"],"type":r.get("type"),"motorisation":r.get("carrier"),"ptac":r.get("ptac"),"neuf":r.get("neuf"),"revente":r.get("revente"),"revente_corrigee":value,"reference_km":ref,"km_correction":round(corr),"page":r.get("page")})
+    return out
 
 def norm(s):
     s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii","ignore").decode("ascii").lower()
@@ -54,6 +66,18 @@ for _year in range(2016, 2026):
     except FileNotFoundError:
         continue
 _dica_vf = {"records": _dica_vf_records}
+DICA_PL = []
+for _year in range(2016, 2026):
+    _path = os.path.join(BASE_DIR, "data", f"dica32_poids_lourds_{_year}.json")
+    try:
+        with open(_path, encoding="utf-8") as f:
+            _rows = json.load(f)
+        for row in _rows:
+            if isinstance(row, list) and len(row) >= 8:
+                brand, model, type_, carrier, ptac, neuf, revente, page = row[:8]
+                DICA_PL.append({"year":_year,"brand":brand,"brand_norm":norm(brand),"model":model,"model_norm":norm(model),"type":type_,"carrier":carrier,"ptac":ptac,"neuf":neuf,"revente":revente,"page":page})
+    except FileNotFoundError:
+        continue
 DICA = []
 for row in (_dica["records"] + _dica_vf.get("records", [])):
     if isinstance(row, list):
@@ -591,7 +615,7 @@ def cote():
     if not SERPER_API_KEY: return jsonify({"error":"SERPER_API_KEY manquante sur le serveur."}),500
     accessories=data.get("accessories") or []
     options_total, option_details=options_value(accessories)
-    dica=[] if category=="poids_lourd" else dica_matches(brand,model,year,km,hp,options_total,category)
+    dica=poids_lourd_matches(brand,model,year,km,hp,ptac) if category=="poids_lourd" else dica_matches(brand,model,year,km,hp,options_total,category)
     hp_query=f" {hp} ch" if hp else ""
     transmission_query=f" {transmission.lower()}" if transmission else ""
     market_term="camping-car poids lourd" if category=="poids_lourd" else ("camping-car" if category=="camping" else ("fourgon aménagé" if category=="fourgon" else "van aménagé"))
