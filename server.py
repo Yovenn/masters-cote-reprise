@@ -27,7 +27,9 @@ def poids_lourd_km_rules(text):
     t=norm(text)
     if "tandem" in t or "6roues" in t or "6 roues" in (text or "").lower():
         return 20000,0.50,0.25
-    return 25000,0.50,0.20
+    if "man" in t or "iveco" in t:
+        return 25000,0.50,0.20
+    return None,None,None
 
 def poids_lourd_matches(brand, model, year, km, hp=None, ptac=None):
     out=[]
@@ -38,8 +40,12 @@ def poids_lourd_matches(brand, model, year, km, hp=None, ptac=None):
         rhp=motor_hp(r.get("carrier",""))
         if hp is not None and rhp is not None and rhp!=hp: continue
         ref,over,under=poids_lourd_km_rules(r.get("carrier",""))
-        corr=(km-ref)*over if km>ref else (ref-km)*under
-        value=round(r["revente"]-corr) if km>ref else round(r["revente"]+corr)
+        if ref is None:
+            corr=0
+            value=round(r["revente"])
+        else:
+            corr=(km-ref)*over if km>ref else (ref-km)*under
+            value=round(r["revente"]-corr) if km>ref else round(r["revente"]+corr)
         out.append({"year":r["year"],"brand":r["brand"],"model":r["model"],"type":r.get("type"),"motorisation":r.get("carrier"),"ptac":r.get("ptac"),"neuf":r.get("neuf"),"revente":r.get("revente"),"revente_corrigee":value,"reference_km":ref,"km_correction":round(corr),"page":r.get("page")})
     return out
 
