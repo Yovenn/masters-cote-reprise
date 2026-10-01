@@ -113,7 +113,7 @@ def dica_model_key(s):
     # Neutralise uniquement les qualificatifs de transmission souvent ajoutés
     # au modèle dans les annonces : MC4 262 Matic -> MC4 262.
     raw=unicodedata.normalize("NFKD", str(s or "")).encode("ascii","ignore").decode("ascii").lower()
-    raw=re.sub(r"\\b(?:matic|bva|bvm|automatique|automatic|auto)\\b"," ",raw)
+    raw=re.sub(r"\b(?:matic|bva|bvm|automatique|automatic|auto)\b"," ",raw)
     return re.sub(r"\\s+"," ",raw).strip()
 
 def dica_model_match(target, record_model, record_gamme=""):
