@@ -144,9 +144,16 @@ async function go(){const status=document.getElementById('status');const btn=[..
   var item={id:id,category:document.getElementById('category')?.value||'camping',date:new Date().toISOString(),client:document.getElementById('clientName').value,plate:document.getElementById('plate').value,brand:document.getElementById('brand').value,model:document.getElementById('model').value,year:document.getElementById('year').value,km:document.getElementById('km').value,cv:document.getElementById('cv').value,hp:document.getElementById('hp').value,transmission:document.getElementById('transmission').value,market:d.market,finalValue:d.market-total,mastersValue:d.market-8000-total,confidence:d.confidence,adjustment:total,states:{body:document.getElementById('stateBody')?.value||'',cell:document.getElementById('stateCell')?.value||'',seal:document.getElementById('stateSeal')?.value||'',tyres:document.getElementById('stateTyres')?.value||'',timing:document.getElementById('stateTiming')?.value||'',service:document.getElementById('stateService')?.value||''},fees:{body:Number(document.getElementById('adjBody')?.value||0),cell:Number(document.getElementById('adjCell')?.value||0),seal:Number(document.getElementById('adjSeal')?.value||0),maint:Number(document.getElementById('adjMaint')?.value||0),timing:Number(document.getElementById('adjTiming')?.value||0),other:Number(document.getElementById('adjOther')?.value||0)},observations:document.querySelector('.eval-sheet .obs')?.value||'',accessories:d.accessories||[],selectedDica:(window.__selectedDica!=null&&d.dica&&d.dica[window.__selectedDica]?{index:window.__selectedDica,year:d.dica[window.__selectedDica].year,gamme:d.dica[window.__selectedDica].gamme,model:d.dica[window.__selectedDica].model,motorisation:d.dica[window.__selectedDica].motorisation,revente_corrigee:d.dica[window.__selectedDica].revente_corrigee,reprise_corrigee:d.dica[window.__selectedDica].reprise_corrigee}:null)};
   list.unshift(item);localStorage.setItem('mastersEvaluations',JSON.stringify(list.slice(0,100)));alert('Évaluation enregistrée : '+id);
 }
-function loadEvaluation(id){
+async function loadEvaluation(id){
   var list=JSON.parse(localStorage.getItem('mastersEvaluations')||'[]'),x=list.find(function(v){return v.id===id});if(!x)return;
-  ['brand','model','year','km','cv','hp','transmission','clientName','plate'].forEach(function(k){var e=document.getElementById(k);if(e)e.value=x[k]||''});var cat=document.getElementById('category');if(cat)cat.value=x.category||'camping';updateCategoryUI();if(x.states){[['stateBody','body'],['stateCell','cell'],['stateSeal','seal'],['stateTyres','tyres'],['stateTiming','timing'],['stateService','service']].forEach(function(p){var e=document.getElementById(p[0]);if(e&&x.states[p[1]])e.value=x.states[p[1]]})}
+  var cat=document.getElementById('category');if(cat)cat.value=x.category||'camping';
+  await dicaCategoryChanged();
+  if(x.year){document.getElementById('year').value=x.year;await dicaYearChanged();}
+  if(x.brand){document.getElementById('brand').value=x.brand;await dicaBrandChanged();}
+  if(x.model){document.getElementById('model').value=x.model;dicaModelChanged();}
+  ['km','cv','transmission','clientName','plate'].forEach(function(k){var e=document.getElementById(k);if(e)e.value=x[k]||''});
+  if(x.hp)document.getElementById('hp').value=x.hp;
+  if(x.states){[['stateBody','body'],['stateCell','cell'],['stateSeal','seal'],['stateTyres','tyres'],['stateTiming','timing'],['stateService','service']].forEach(function(p){var e=document.getElementById(p[0]);if(e&&x.states[p[1]])e.value=x.states[p[1]]})}
   document.getElementById('out').innerHTML='';window.scrollTo({top:0,behavior:'smooth'});document.getElementById('brand').focus();
 }
 function exportHistory(){
