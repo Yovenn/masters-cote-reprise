@@ -293,6 +293,18 @@ def dica_gamme_score(text,brand,model,year,requested_gamme,category="camping"):
 def score_result(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
     title=str(r.get("title","")); snippet=str(r.get("snippet","")); text=f"{title} {snippet}"; low=text.lower(); score=0
     if norm(brand) in norm(low): score+=25
+    # Renforce la qualification par catégorie sans exiger un libellé unique :
+    # les annonces de fourgons peuvent employer "fourgon", "fourgon aménagé"
+    # ou "fourgonnette aménagée"; les vans sont souvent annoncés simplement "van".
+    if category=="fourgon":
+        if re.search(r"\bfourgon(?:s)?\b",low): score+=18
+        elif re.search(r"\b(fourgonette|fourgonette)\b",low): score+=12
+        elif re.search(r"\bvan\b",low): score-=20
+    elif category=="van":
+        if re.search(r"\bvan(?:s)?\b",low): score+=18
+        elif re.search(r"\bfourgon(?:s)?\b",low): score-=20
+    elif category=="camping":
+        if re.search(r"\bfourgon(?:s)?\b|\bvan(?:s)?\b",low): score-=15
     model_score=model_match_score(low,model)
     if model_score<=0:
         return 0
@@ -566,7 +578,7 @@ def cote():
     transmission_query=f" {transmission.lower()}" if transmission else ""
     market_term="camping-car" if category=="camping" else ("fourgon aménagé" if category=="fourgon" else "van aménagé")
     gamme_query=f' "{dica_gamme}"' if dica_gamme else ""
-    queries=[f'"{brand} {model}"{gamme_query} {year}{hp_query}{transmission_query} {market_term} occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" occasion',f'"{brand} {model}" {year} {market_term} occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
+    queries=[f'"{brand} {model}"{gamme_query} {year}{hp_query}{transmission_query} {market_term} occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" {market_term} occasion',f'"{brand} {model}" {year} {market_term} occasion prix',f'site:leboncoin.fr "{brand} {model}" {year} {market_term}',f'site:paruvendu.fr "{brand} {model}" {year} {market_term}',f'site:hunyvers.com "{brand} {model}" {year} {market_term}',f'site:camping-car.com "{brand} {model}" {year} {market_term}']
     results=[]
     for q in queries:
         try:
