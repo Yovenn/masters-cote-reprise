@@ -242,10 +242,15 @@ def is_aggregation(r):
 def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None):
     price,rkm=parse_price_km(r)
     text=f"{r.get('title','')} {r.get('snippet','')}"
-    years=extract_years(text)
-    # Une annonce n'entre dans la cote que si son année est explicitement
-    # la même que celle du véhicule évalué.
-    if year not in years or any(y != year for y in years):
+    title_years=extract_years(str(r.get("title","")))
+    snippet_years=extract_years(str(r.get("snippet","")))
+    # Une annonce n'entre dans la cote que si l'année du véhicule est
+    # explicitement identifiable. Si le titre donne une année, elle doit
+    # être exactement celle du véhicule évalué. Sinon, l'année recherchée
+    # doit au minimum apparaître dans le descriptif.
+    if title_years and year not in title_years:
+        return None
+    if not title_years and year not in snippet_years:
         return None
     score=score_result(r,brand,model,year,target_km,hp,transmission)
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
