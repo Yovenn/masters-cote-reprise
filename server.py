@@ -498,11 +498,11 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     adjusted=price; km_adjustment=0
     if rkm is not None:
         if category=="poids_lourd":
-            ref_km, over_rate, under_rate, cap = poids_lourd_km_rules(f"{r.get('title','')} {r.get('snippet','')}")
+            ref_km, over_rate, under_rate = poids_lourd_km_rules(f"{r.get('title','')} {r.get('snippet','')}")
             if ref_km is not None:
                 delta_km=rkm-target_km
                 km_adjustment=round(delta_km*(over_rate if delta_km>0 else under_rate))
-                km_adjustment=max(-cap,min(cap,km_adjustment))
+                km_adjustment=km_adjustment
         else:
             if rkm>target_km: km_adjustment=round((rkm-target_km)*DICA_OVER_KM_RATE)
             elif rkm<target_km: km_adjustment=-round((target_km-rkm)*DICA_UNDER_KM_RATE)
@@ -520,7 +520,8 @@ def dica_catalog():
     year=int(year_raw) if year_raw.isdigit() else None
     rows=[]
     seen=set()
-    for r in DICA:
+    source = DICA_PL if category=="poids_lourd" else DICA
+    for r in source:
         if year is not None and r.get("year")!=year:
             continue
         if category=="van" and r.get("type")!="V": continue
@@ -533,7 +534,7 @@ def dica_catalog():
         seen.add(key)
         rows.append({
             "year":r.get("year"),"brand":r.get("brand",""),"gamme":r.get("gamme",""),
-            "model":r.get("model",""),"motorisation":r.get("motorisation",""),
+            "model":r.get("model",""),"motorisation":r.get("carrier",r.get("motorisation","")),
             "type":r.get("type",""),"neuf":r.get("neuf"),"revente":r.get("revente"),
             "reprise":r.get("reprise"),"page":r.get("page")
         })
@@ -549,8 +550,9 @@ def dica_years():
     category=str(request.args.get("category","camping")).strip().lower()
     if category not in ("camping","poids_lourd","van","fourgon"):
         return jsonify({"error":"Catégorie invalide."}),400
+    source = DICA_PL if category=="poids_lourd" else DICA
     years=sorted({
-        int(r.get("year")) for r in DICA
+        int(r.get("year")) for r in source
         if r.get("year") is not None
         and ((category=="van" and r.get("type")=="V") or
              (category=="fourgon" and r.get("type")=="F") or
@@ -565,8 +567,9 @@ def dica_brands():
     if category not in ("camping","poids_lourd","van","fourgon") or not year_raw.isdigit():
         return jsonify({"error":"Paramètres invalides."}),400
     year=int(year_raw)
+    source = DICA_PL if category=="poids_lourd" else DICA
     brands=sorted({
-        r.get("brand","") for r in DICA
+        r.get("brand","") for r in source
         if r.get("year")==year and r.get("brand")
         and ((category=="van" and r.get("type")=="V") or
              (category=="fourgon" and r.get("type")=="F") or
@@ -584,7 +587,8 @@ def dica_models():
     year=int(year_raw)
     rows=[]
     seen=set()
-    for r in DICA:
+    source = DICA_PL if category=="poids_lourd" else DICA
+    for r in source:
         if r.get("year")!=year or norm(r.get("brand",""))!=norm(brand):
             continue
         if category=="van" and r.get("type")!="V": continue
