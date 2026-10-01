@@ -88,6 +88,14 @@ def extract_hp(text):
         v=int(m.group(1))
         if 50<=v<=500: out.append(v)
     return out
+
+def extract_years(text):
+    out=[]
+    for m in re.finditer(r'\b(20(?:1\d|2[0-9]))\b', str(text or '')):
+        y=int(m.group(1))
+        if 2010<=y<=DICA_EDITION_YEAR:
+            out.append(y)
+    return sorted(set(out))
 def motor_hp(motorisation):
     vals=extract_hp(motorisation)
     if vals:
@@ -232,7 +240,14 @@ def is_aggregation(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower()
     return any(w in text for w in AGGREGATOR_WORDS)
 def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None):
-    price,rkm=parse_price_km(r); text=f"{r.get('title','')} {r.get('snippet','')}"; score=score_result(r,brand,model,year,target_km,hp,transmission)
+    price,rkm=parse_price_km(r)
+    text=f"{r.get('title','')} {r.get('snippet','')}"
+    years=extract_years(text)
+    # Une annonce n'entre dans la cote que si son année est explicitement
+    # la même que celle du véhicule évalué.
+    if year not in years or any(y != year for y in years):
+        return None
+    score=score_result(r,brand,model,year,target_km,hp,transmission)
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
     if is_aggregation(r): score-=10
     if score<65: return None
