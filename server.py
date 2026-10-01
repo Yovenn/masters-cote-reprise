@@ -225,7 +225,7 @@ def model_match_score(text,model):
     if compact and compact in compact_text:
         # Une finition voisine ne doit pas être assimilée au modèle demandé.
         # Exemple : 600 SPB != 600 SPB Family / Plus / Supreme.
-        variant_words={"family","plus","supreme","supreme","sport","sports","elite","maxi","premium","edition","limited","exclusive"}
+        variant_words={"family","plus","supreme","sport","sports","elite","maxi","premium","edition","limited","exclusive","duo","xl","xs","l","s","m","g","gx","lj","sgx","slb","spb","4x4","60","anniversary","anniversaire"}
         m=re.search(rf"(?<![a-z0-9]){re.escape(compact)}(?![a-z0-9])",compact_text)
         if m:
             tail=compact_text[m.end():].strip().split()
