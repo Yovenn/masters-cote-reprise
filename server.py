@@ -3,6 +3,13 @@ from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 
 app = Flask(__name__, static_folder="static")
+
+@app.errorhandler(Exception)
+def api_safe_error(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"error":"Erreur interne du moteur : "+str(e)}), 500
+    raise e
+
 SERPER_API_KEY = os.environ.get("SERPER_API_KEY", "")
 DICA_EDITION_YEAR = 2026
 DICA_REF_KM_PER_YEAR = 12000
