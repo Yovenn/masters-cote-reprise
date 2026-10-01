@@ -31,7 +31,7 @@ h1{font-size:30px;margin:4px 0 7px;font-weight:900}
 h2{font-size:20px;margin:6px 0 14px}
 .subtitle{color:var(--muted);font-size:14px;margin-bottom:20px}
 label{font-weight:700;color:#363b42;font-size:13px}
-input,select,textarea{border:1px solid #d5d9df;border-radius:10px;background:#fff;min-height:42px;padding:9px 11px;box-sizing:border-box;font-size:15px;outline:none}
+input,select,textarea{border:1px solid #d5d9df;border-radius:10px;background:#fff;min-height:42px;padding:9px 11px;box-sizing:border-box;font-size:15px;outline:none}\nselect{appearance:auto;-webkit-appearance:auto;pointer-events:auto;touch-action:manipulation;position:relative;z-index:5;cursor:pointer} .grid{position:relative;z-index:1} .grid>div{position:relative;z-index:2}
 input:focus,select:focus,textarea:focus{border-color:var(--masters-yellow);box-shadow:0 0 0 3px rgba(255,212,0,.18)}
 button{border:0!important;border-radius:11px!important;font-weight:900!important;letter-spacing:.2px!important;box-shadow:0 5px 12px rgba(0,0,0,.08);transition:.15s}
 button:hover{transform:translateY(-1px);filter:brightness(.98)}
@@ -182,10 +182,16 @@ async function loadDicaCatalog(){
   var cat=dicaCatalogKey();
   if(__dicaCatalogCache[cat]) return __dicaCatalogCache[cat];
   try{
-    var r=await fetch('/api/dica/catalog?category='+encodeURIComponent(cat));
-    if(!r.ok) throw new Error('Catalogue DICA indisponible');
-    var d=await r.json(); __dicaCatalogCache[cat]=d.records||[]; return __dicaCatalogCache[cat];
-  }catch(e){console.warn(e);return []}
+    var r=await fetch('/api/dica/catalog?category='+encodeURIComponent(cat)+'&v=20261001',{cache:'no-store'});
+    if(!r.ok) throw new Error('Catalogue DICA indisponible ('+r.status+')');
+    var d=await r.json();
+    if(!Array.isArray(d.records)) throw new Error('Réponse catalogue invalide');
+    __dicaCatalogCache[cat]=d.records;
+    return d.records;
+  }catch(e){
+    console.warn('Catalogue DICA:',e);
+    return [];
+  }
 }
 function fillSelect(el,items,placeholder){
   if(!el)return;
