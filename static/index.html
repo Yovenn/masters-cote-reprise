@@ -177,59 +177,66 @@ function showHistory(){
 }
 function filterHistory(){var q=(document.getElementById('historySearch').value||'').toLowerCase();document.querySelectorAll('.history-item').forEach(function(e){e.style.display=!q||e.dataset.search.includes(q)?'block':'none'})}
 function newSearch(){document.getElementById('out').innerHTML='';document.getElementById('status').style.display='none';['brand','model','year','km','cv','hp','transmission','clientName','plate'].forEach(function(id){var el=document.getElementById(id);if(el)el.value=''});var cat=document.getElementById('category');if(cat){cat.value='camping';updateCategoryUI();}document.getElementById('accessories').innerHTML='';window.scrollTo({top:0,behavior:'smooth'});document.getElementById('brand').focus()}var __dicaCatalogCache={};
+var __dicaCatalogCache={};
 function dicaCatalogKey(){return document.getElementById('category')?.value||'camping'}
-async function loadDicaCatalog(){
-  var cat=dicaCatalogKey();
-  if(__dicaCatalogCache[cat]) return __dicaCatalogCache[cat];
-  try{
-    var r=await fetch('/api/dica/catalog?category='+encodeURIComponent(cat)+'&v=20261001',{cache:'no-store'});
-    if(!r.ok) throw new Error('Catalogue DICA indisponible ('+r.status+')');
-    var d=await r.json();
-    if(!Array.isArray(d.records)) throw new Error('Réponse catalogue invalide');
-    __dicaCatalogCache[cat]=d.records;
-    return d.records;
-  }catch(e){
-    console.warn('Catalogue DICA:',e);
-    return [];
-  }
+async function dicaJson(url){
+  var r=await fetch(url,{cache:'no-store'});
+  if(!r.ok) throw new Error('Catalogue DICA indisponible ('+r.status+')');
+  return await r.json();
 }
 function fillSelect(el,items,placeholder){
   if(!el)return;
   el.innerHTML='<option value="">'+placeholder+'</option>';
-  items.forEach(function(x){var o=document.createElement('option');o.value=x.value;o.textContent=x.label;if(x.hp)o.dataset.hp=x.hp;if(x.gamme)o.dataset.gamme=x.gamme;el.appendChild(o)});
-}
-function dicaRefreshYears(records){
-  var years=[...new Set(records.map(function(r){return Number(r.year)}))].sort(function(a,b){return b-a});
-  fillSelect(document.getElementById('year'),years.map(function(y){return {value:y,label:String(y)}}),'Choisir une année…');
-  document.getElementById('brand').innerHTML='<option value="">Choisir une année…</option>';
-  document.getElementById('model').innerHTML='<option value="">Choisir une année et une marque…</option>';
+  items.forEach(function(x){
+    var o=document.createElement('option');
+    o.value=x.value;o.textContent=x.label;
+    if(x.hp)o.dataset.hp=x.hp;
+    if(x.gamme)o.dataset.gamme=x.gamme;
+    if(x.motorisation)o.dataset.motorisation=x.motorisation;
+    el.appendChild(o);
+  });
 }
 async function dicaCategoryChanged(){
-  var records=await loadDicaCatalog(); dicaRefreshYears(records);
+  var cat=dicaCatalogKey();
+  try{
+    var d=await dicaJson('/api/dica/years?category='+encodeURIComponent(cat));
+    fillSelect(document.getElementById('year'),(d.years||[]).map(function(y){return {value:y,label:String(y)}}),'Choisir une année…');
+    fillSelect(document.getElementById('brand'),[],'Choisir une année…');
+    fillSelect(document.getElementById('model'),[],'Choisir une année et une marque…');
+    window.__catalogSelection=null;
+  }catch(e){
+    console.warn(e);
+    fillSelect(document.getElementById('year'),[],'Catalogue DICA indisponible');
+  }
 }
 async function dicaYearChanged(){
-  var records=await loadDicaCatalog(), year=Number(document.getElementById('year').value);
-  var brands=[...new Set(records.filter(function(r){return !year||Number(r.year)===year}).map(function(r){return r.brand}))].sort(function(a,b){return a.localeCompare(b,'fr')});
-  fillSelect(document.getElementById('brand'),brands.map(function(b){return {value:b,label:b}}),'Choisir une marque…');
-  document.getElementById('model').innerHTML='<option value="">Choisir une marque…</option>';
-  document.getElementById('hp').value='';
+  var cat=dicaCatalogKey(),year=Number(document.getElementById('year').value);
+  if(!year){
+    fillSelect(document.getElementById('brand'),[],'Choisir une année…');
+    fillSelect(document.getElementById('model'),[],'Choisir une année et une marque…');
+    return;
+  }
+  try{
+    var d=await dicaJson('/api/dica/brands?category='+encodeURIComponent(cat)+'&year='+encodeURIComponent(year));
+    fillSelect(document.getElementById('brand'),(d.brands||[]).map(function(b){return {value:b,label:b}}),'Choisir une marque…');
+    fillSelect(document.getElementById('model'),[],'Choisir une marque…');
+    document.getElementById('hp').value='';
+    window.__catalogSelection=null;
+  }catch(e){console.warn(e)}
 }
 async function dicaBrandChanged(){
-  var records=await loadDicaCatalog(), year=Number(document.getElementById('year').value), brand=document.getElementById('brand').value;
-  var rows=records.filter(function(r){return (!year||Number(r.year)===year)&&(!brand||r.brand===brand)});
-  var seen={}; var models=[];
-  rows.forEach(function(r){
-    var hp=(r.motorisation||'').match(/(\d{2,3})\s*ch/i);
-    var key=(r.gamme||'')+'|'+(r.model||'')+'|'+(r.motorisation||'');
-    if(seen[key])return; seen[key]=1;
-    models.push({value:r.model||'',label:(r.gamme?(r.gamme+' · '):'')+(r.model||'')+(r.motorisation?' — '+r.motorisation:''),hp:hp?hp[1]:'',gamme:r.gamme||'',motorisation:r.motorisation||''});
-  });
-  models.sort(function(a,b){return a.label.localeCompare(b.label,'fr')});
-  var sel=document.getElementById('model');
-  fillSelect(sel,models,'Choisir une référence DICA…');
-  models.forEach(function(x,i){if(sel&&sel.options[i+1]){sel.options[i+1].dataset.gamme=x.gamme;sel.options[i+1].dataset.motorisation=x.motorisation}});
-  document.getElementById('hp').value='';
-  window.__catalogSelection=null;
+  var cat=dicaCatalogKey(),year=Number(document.getElementById('year').value),brand=document.getElementById('brand').value;
+  if(!year||!brand){fillSelect(document.getElementById('model'),[],'Choisir une année et une marque…');return}
+  try{
+    var d=await dicaJson('/api/dica/models?category='+encodeURIComponent(cat)+'&year='+encodeURIComponent(year)+'&brand='+encodeURIComponent(brand));
+    var models=(d.records||[]).map(function(r){
+      var hp=(r.motorisation||'').match(/(\\d{2,3})\\s*ch/i);
+      return {value:r.model||'',label:(r.gamme?(r.gamme+' · '):'')+(r.model||'')+(r.motorisation?' — '+r.motorisation:''),hp:hp?hp[1]:'',gamme:r.gamme||'',motorisation:r.motorisation||''};
+    });
+    fillSelect(document.getElementById('model'),models,'Choisir une référence DICA…');
+    document.getElementById('hp').value='';
+    window.__catalogSelection=null;
+  }catch(e){console.warn(e)}
 }
 function dicaModelChanged(){
   var sel=document.getElementById('model'), opt=sel&&sel.options[sel.selectedIndex];
