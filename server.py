@@ -332,21 +332,25 @@ def cote():
         mad=statistics.median(deviations)
         if mad>0:
             limit=3*mad
-            filtered_values=[v for v in values if abs(v-med)<=limit]
+            keep_mask=[abs(v-med)<=limit for v in values]
         else:
-            filtered_values=[v for v in values if med*.90<=v<=med*1.10]
-        if len(filtered_values)<3:
+            keep_mask=[med*.90<=v<=med*1.10 for v in values]
+        if sum(keep_mask)>=3:
+            filtered_values=[v for v,keep in zip(values,keep_mask) if keep]
+            excluded_values=[v for v,keep in zip(values,keep_mask) if not keep]
+        else:
             filtered_values=list(values)
-        excluded_values=[v for v in values if v not in filtered_values]
     filtered=filtered_values
     market=round(statistics.median(filtered)/100)*100
     market_low=round(min(filtered)/100)*100
     market_high=round(max(filtered)/100)*100
     dispersion=statistics.median([abs(v-statistics.median(filtered)) for v in filtered]) / max(1,statistics.median(filtered))
     confidence="Bonne" if len(filtered)>=7 and dispersion<=0.10 else "Correcte" if len(filtered)>=5 else "Faible"
+    filtered_ids={id(row) for row in primary if row["adjusted"] in filtered}
+    excluded_ids={id(row) for row in primary if row["adjusted"] in excluded_values}
     for row in primary:
-        row["retenu_dans_cote"]=row["adjusted"] in filtered
-        row["atypique"]=row["adjusted"] in excluded_values
+        row["retenu_dans_cote"]=id(row) in filtered_ids
+        row["atypique"]=id(row) in excluded_ids
     dica_near=dica_near_matches(brand,model,year,km,hp,options_total,category) if not dica else []
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
     transmission_gap=None
