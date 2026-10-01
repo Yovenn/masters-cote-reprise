@@ -512,7 +512,7 @@ def dica_years():
         if r.get("year") is not None
         and ((category=="van" and r.get("type")=="V") or
              (category=="fourgon" and r.get("type")=="F") or
-             (category=="camping" and r.get("type") not in ("F","V")))
+             (category in ("camping","poids_lourd") and r.get("type") not in ("F","V")))
     }, reverse=True)
     return jsonify({"category":category,"years":years})
 
@@ -528,7 +528,7 @@ def dica_brands():
         if r.get("year")==year and r.get("brand")
         and ((category=="van" and r.get("type")=="V") or
              (category=="fourgon" and r.get("type")=="F") or
-             (category=="camping" and r.get("type") not in ("F","V")))
+             (category in ("camping","poids_lourd") and r.get("type") not in ("F","V")))
     }, key=lambda x:x.lower())
     return jsonify({"category":category,"year":year,"brands":brands})
 
@@ -643,7 +643,7 @@ def cote():
             "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),
             "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],"dica":dica,
             "dica_ambiguous":len(dica)>1,
-            "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if not dica else [],
+            "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if (not dica and category!="poids_lourd") else [],
             "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback},
             "message":"Cote marché non calculée : moins de 3 comparables qualifiés avec kilométrage ont été trouvés. Les annonces sans kilométrage restent affichées à titre de contexte uniquement."
         })
@@ -674,7 +674,7 @@ def cote():
     for row in primary:
         row["retenu_dans_cote"]=id(row) in filtered_ids
         row["atypique"]=id(row) in excluded_ids
-    dica_near=dica_near_matches(brand,model,year,km,hp,options_total,category) if not dica else []
+    dica_near=dica_near_matches(brand,model,year,km,hp,options_total,category) if (not dica and category!="poids_lourd") else []
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
     transmission_gap=None
     transmission_counts={"Automatique":0,"Manuelle":0,"Inconnue":0}
