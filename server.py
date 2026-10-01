@@ -1,4 +1,4 @@
-import os, re, statistics, json, requests
+import os, re, statistics, json, requests, unicodedata
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 
@@ -11,26 +11,39 @@ DICA_UNDER_KM_RATE = 0.10
 DICA_REPRISE_FACTOR = 0.85
 MASTERS_FRAIS = 8000
 DICA_RECALAGE_FACTOR = 0.50
+DICA_REF_KM_BY_TYPE = {"F":15000,"V":20000,"P":12000,"C":12000,"I":12000}
+
+def norm(s):
+    s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii","ignore").decode("ascii").lower()
+    return re.sub(r"[^a-z0-9]","",s)
+
+def dica_ref_km(year, type_):
+    return max(0, (DICA_EDITION_YEAR-year) * DICA_REF_KM_BY_TYPE.get(str(type_ or "").upper(), DICA_REF_KM_PER_YEAR))
+
 BASE_DIR = os.path.dirname(__file__)
 with open(os.path.join(BASE_DIR, "dica32_camping_cars.json"), encoding="utf-8") as f:
     _dica = json.load(f)
+try:
+    with open(os.path.join(BASE_DIR, "dica32_vans_fourgons.json"), encoding="utf-8") as f:
+        _dica_vf = json.load(f)
+except FileNotFoundError:
+    _dica_vf = {"records": []}
 DICA = []
-for row in _dica["records"]:
+for row in (_dica["records"] + _dica_vf.get("records", [])):
     if isinstance(row, list):
         year, brand, gamme, model, motorisation, type_, neuf, revente, reprise, page = row
         DICA.append({
-            "year": year, "brand": brand, "brand_norm": re.sub(r"[^a-z0-9]","",str(brand).lower()),
-            "gamme": gamme, "model": model, "model_norm": re.sub(r"[^a-z0-9]","",str(model).lower()),
+            "year": year, "brand": brand, "brand_norm": norm(brand),
+            "gamme": gamme, "model": model, "model_norm": norm(model),
             "motorisation": motorisation, "type": type_, "neuf": neuf,
             "revente": revente, "reprise": reprise, "page": page
         })
     else:
-        row["brand_norm"] = re.sub(r"[^a-z0-9]","",(row.get("brand","") or "").lower())
-        row["model_norm"] = re.sub(r"[^a-z0-9]","",(row.get("model","") or "").lower())
+        row["brand_norm"] = norm(row.get("brand",""))
+        row["model_norm"] = norm(row.get("model",""))
         DICA.append(row)
 NEW_WORDS=("neuf","neuve","0 km","0km","jamais immatriculé","jamais immatricule","véhicule neuf","vehicule neuf","stock neuf","déstockage","destockage")
 AGGREGATOR_WORDS=("page 2","page 3","page 4","page 5","tous les véhicules","toutes les annonces","résultats de recherche","resultats de recherche","annonces similaires")
-def norm(s): return re.sub(r"[^a-z0-9]","",(s or "").lower())
 def clean_num(v): return int(re.sub(r"[^0-9]","",str(v)))
 def extract_kms(text):
     out=[]
@@ -119,7 +132,7 @@ def dica_model_match(target, record_model, record_gamme=""):
     return False
 
 def dica_matches(brand,model,year,km,hp=None,options_value_total=0):
-    b,m=norm(brand),norm(model); ref=max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR); out=[]
+    b,m=norm(brand),norm(model); ref=dica_ref_km(year, None); out=[]
     for r in DICA:
         if r["year"]!=year or r["brand_norm"]!=b: continue
         rm=r["model_norm"]; rg=norm(r.get("gamme",""))
@@ -143,7 +156,7 @@ def dica_near_matches(brand,model,year,km,hp=None,options_value_total=0):
         if not dica_model_match(model, r.get("model",""), r.get("gamme","")): continue
         rhp=motor_hp(r.get("motorisation",""))
         if hp is not None and rhp != hp: continue
-        ref=max(0,(DICA_EDITION_YEAR-r["year"])*DICA_REF_KM_PER_YEAR)
+        ref=dica_ref_km(r["year"], r.get("type"))
         if km>ref: corr=(km-ref)*DICA_OVER_KM_RATE; rev=r["revente"]-corr
         else: corr=(ref-km)*DICA_UNDER_KM_RATE; rev=r["revente"]+corr
         score=100-(year_gap*20)
@@ -266,6 +279,7 @@ def cote():
     for row in primary:
         row["retenu_dans_cote"]=row["adjusted"] in filtered
         row["atypique"]=row["adjusted"] in excluded_values
+    dica_near=dica_near_matches(brand,model,year,km,hp,options_total) if not dica else []
     search_time=datetime.now().astimezone().isoformat(timespec="minutes")
     transmission_gap=None
     transmission_counts={"Automatique":0,"Manuelle":0,"Inconnue":0}
@@ -283,5 +297,5 @@ def cote():
     if len(dica)==1:
         experimental_market_gap=round(market-dica[0]["revente_corrigee"])
         experimental_professional_value=round(dica[0]["reprise_corrigee"] + (experimental_market_gap*DICA_RECALAGE_FACTOR))
-    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"transmission":transmission,"transmission_fallback":transmission_fallback,"transmission_counts":transmission_counts,"transmission_gap":transmission_gap,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_ambiguous":len(dica)>1,"dica_near":dica_near_matches(brand,model,year,km,hp,options_total) if not dica else [],"quality":{"comparables":len(filtered),"atypiques":len(excluded_values),"transmission_fallback":transmission_fallback,"km_comparables":sum(1 for x in primary if x.get("km") is not None),"sans_km":len(context)},"experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":experimental_market_gap,"experimental_professional_value":experimental_professional_value,"accessories":option_details,"accessories_value":options_total,"dica_reference_km":max(0,(DICA_EDITION_YEAR-year)*DICA_REF_KM_PER_YEAR),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    return jsonify({"status":"ok","comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"transmission":transmission,"transmission_fallback":transmission_fallback,"transmission_counts":transmission_counts,"transmission_gap":transmission_gap,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_ambiguous":len(dica)>1,"dica_near":dica_near,"quality":{"comparables":len(filtered),"atypiques":len(excluded_values),"transmission_fallback":transmission_fallback,"km_comparables":sum(1 for x in primary if x.get("km") is not None),"sans_km":len(context)},"experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":experimental_market_gap,"experimental_professional_value":experimental_professional_value,"accessories":option_details,"accessories_value":options_total,"dica_reference_km":(dica[0]["reference_km"] if dica else (dica_near[0]["reference_km"] if dica_near else dica_ref_km(year,None))),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
