@@ -237,7 +237,10 @@ def model_match_score(text,model):
 def score_result(r,brand,model,year,target_km,hp=None,transmission=None):
     title=str(r.get("title","")); snippet=str(r.get("snippet","")); text=f"{title} {snippet}"; low=text.lower(); score=0
     if norm(brand) in norm(low): score+=25
-    score+=model_match_score(low,model)
+    model_score=model_match_score(low,model)
+    if model_score<=0:
+        return 0
+    score+=model_score
     if re.search(rf"\b{re.escape(str(year))}\b",low): score+=20
     ks=extract_kms(text)
     if ks:
