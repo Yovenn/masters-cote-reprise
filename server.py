@@ -233,15 +233,23 @@ def model_match_score(text,model):
             if tail and tail[0] in variant_words:
                 return 0
             return 48
-    # Variante de formulation pour les séries spéciales : Edition / Anniversary /
-    # Anniversaire peuvent désigner la même série lorsqu'un identifiant commun
-    # (ex. 60) est explicitement présent. On conserve le modèle de base exact.
-    requested_tokens=set(re.findall(r"[a-z0-9]+",t_raw))
-    ad_tokens=set(re.findall(r"[a-z0-9]+",raw))
-    special_tokens={"edition","anniversary","anniversaire"}
-    if requested_tokens & {"60"} and "60" in ad_tokens and requested_tokens - special_tokens <= ad_tokens | special_tokens:
-        base_requested=requested_tokens-special_tokens
-        if base_requested and base_requested <= ad_tokens:
+    # Séries spéciales : les annonces séparent souvent les codes alphanumériques
+    # (« 696F » -> « 696 F ») et écrivent « 60e », « 60 ans » ou « 60 anniversaire »
+    # au lieu de « 60 Edition ». On exige néanmoins le modèle de base ET l'identifiant
+    # de série pour éviter de mélanger 696F standard et 696F 60e anniversaire.
+    requested_tokens=re.findall(r"[a-z0-9]+",norm(model))
+    if "60" in requested_tokens:
+        has_base=False
+        for tok in requested_tokens:
+            if tok in {"60","edition","anniversary","anniversaire"}:
+                continue
+            if len(tok)>=2 and re.search(rf"(?<![a-z0-9]){re.escape(tok[:-1])}\\s*{re.escape(tok[-1])}(?![a-z0-9])",raw):
+                has_base=True
+            elif tok and re.search(rf"(?<![a-z0-9]){re.escape(tok)}(?![a-z0-9])",compact_text):
+                has_base=True
+        has_60=bool(re.search(r"(?<!\\d)60(?:e|eme|ème|ans)?(?!\\d)",raw))
+        has_special=bool(re.search(r"\\b(?:edition|anniversaire|anniversary|ans)\\b",raw))
+        if has_base and has_60 and has_special:
             return 48
     parts=[p for p in re.split(r"[\s/-]+",model) if len(p)>=2]
     return 48 if parts and all(p in raw for p in parts) else 0
