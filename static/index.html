@@ -179,49 +179,40 @@ function filterHistory(){var q=(document.getElementById('historySearch').value||
 function newSearch(){document.getElementById('out').innerHTML='';document.getElementById('status').style.display='none';['brand','model','year','km','cv','hp','transmission','clientName','plate'].forEach(function(id){var el=document.getElementById(id);if(el)el.value=''});var cat=document.getElementById('category');if(cat){cat.value='camping';updateCategoryUI();}document.getElementById('accessories').innerHTML='';window.scrollTo({top:0,behavior:'smooth'});document.getElementById('brand').focus()}var __dicaCatalogCache={};
 var __dicaCatalogCache={};
 function dicaCatalogKey(){return document.getElementById('category')?.value||'camping'}
-async function dicaJson(url){
-  var r=await fetch(url,{cache:'no-store'});
-  if(!r.ok) throw new Error('Catalogue DICA indisponible ('+r.status+')');
-  return await r.json();
-}
 async function loadDicaCatalog(){
   var cat=dicaCatalogKey();
   if(__dicaCatalogCache[cat]) return __dicaCatalogCache[cat];
-  var records=[];
   try{
-    var camping=await dicaJson('/dica32_camping_cars.json?v=20261001');
-    if(cat==='camping'){
-      records=(camping.records||[]).map(function(x){return {year:x[0],brand:x[1],gamme:x[2],model:x[3],motorisation:x[4],type:x[5],neuf:x[6],revente:x[7],reprise:x[8],page:x[9]}});
-    }else{
-      var urls=[];
-      for(var y=2016;y<=2025;y++) urls.push('/data/dica32_vans_fourgons_'+y+'.json?v=20261001');
-      var packs=await Promise.all(urls.map(function(u){return dicaJson(u).catch(function(){return []})}));
-      packs.forEach(function(pack){(Array.isArray(pack)?pack:[]).forEach(function(x){
-        records.push({year:x[0],brand:x[1],gamme:x[2],model:x[3],motorisation:x[4],type:x[5],neuf:x[6],revente:x[7],reprise:x[8],page:x[9]});
-      })});
-      records=records.filter(function(r){return cat==='van'?r.type==='V':r.type==='F'});
-    }
-    if(!records.length) throw new Error('Aucune référence DICA chargée');
+    var r=await fetch('/static/dica_menu.json?v=20261001',{cache:'no-store'});
+    if(!r.ok) throw new Error('Catalogue DICA indisponible ('+r.status+')');
+    var d=await r.json();
+    var records=(d.records||[]).filter(function(x){return x.category===cat});
     __dicaCatalogCache[cat]=records;
     return records;
   }catch(e){
-    console.warn('Catalogue DICA direct:',e);
+    console.warn('Catalogue DICA:',e);
     return [];
   }
 }
+function fillSelect(el,items,placeholder){
+  if(!el)return;
+  el.innerHTML='<option value="">'+placeholder+'</option>';
+  items.forEach(function(x){
+    var o=document.createElement('option');
+    o.value=x.value;o.textContent=x.label;
+    if(x.hp)o.dataset.hp=x.hp;
+    if(x.gamme)o.dataset.gamme=x.gamme;
+    if(x.motorisation)o.dataset.motorisation=x.motorisation;
+    el.appendChild(o);
+  });
+}
 async function dicaCategoryChanged(){
-  var cat=dicaCatalogKey();
-  try{
-    var records=await loadDicaCatalog();
-    var years=[...new Set(records.map(function(r){return Number(r.year)}))].sort(function(a,b){return b-a});
-    fillSelect(document.getElementById('year'),years.map(function(y){return {value:y,label:String(y)}}),'Choisir une année…');
-    fillSelect(document.getElementById('brand'),[],'Choisir une année…');
-    fillSelect(document.getElementById('model'),[],'Choisir une année et une marque…');
-    window.__catalogSelection=null;
-  }catch(e){
-    console.warn(e);
-    fillSelect(document.getElementById('year'),[],'Catalogue DICA indisponible');
-  }
+  var records=await loadDicaCatalog();
+  var years=[...new Set(records.map(function(r){return Number(r.year)}))].sort(function(a,b){return b-a});
+  fillSelect(document.getElementById('year'),years.map(function(y){return {value:y,label:String(y)}}),'Choisir une année…');
+  fillSelect(document.getElementById('brand'),[],'Choisir une année…');
+  fillSelect(document.getElementById('model'),[],'Choisir une année et une marque…');
+  window.__catalogSelection=null;
 }
 async function dicaYearChanged(){
   var records=await loadDicaCatalog(),year=Number(document.getElementById('year').value);
