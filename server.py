@@ -479,6 +479,10 @@ def dica_catalog():
     rows.sort(key=lambda x:(x["brand"],x["gamme"],x["model"],x["motorisation"]))
     return jsonify({"category":category,"year":year,"count":len(rows),"records":rows})
 
+@app.get("/dica_menu.json")
+def dica_menu_file():
+    return send_from_directory("static", "dica_menu.json", mimetype="application/json", max_age=0)
+
 @app.get("/api/dica/years")
 def dica_years():
     category=str(request.args.get("category","camping")).strip().lower()
