@@ -234,13 +234,43 @@ def model_match_score(text,model):
             return 48
     parts=[p for p in re.split(r"[\s/-]+",model) if len(p)>=2]
     return 48 if parts and all(p in raw for p in parts) else 0
-def score_result(r,brand,model,year,target_km,hp=None,transmission=None):
+def dica_gamme_score(text,brand,model,year,requested_gamme):
+    requested=norm(requested_gamme)
+    if not requested:
+        return 0
+    candidates=[]
+    for r in DICA:
+        if r.get("brand_norm")!=norm(brand) or r.get("year")!=year:
+            continue
+        if not dica_model_match(model,r.get("model",""),r.get("gamme","")):
+            continue
+        g=norm(r.get("gamme",""))
+        if g and g not in candidates:
+            candidates.append(g)
+    text_norm=norm(text)
+    matched=[g for g in candidates if g in text_norm]
+    if requested in matched:
+        # Si l'annonce mentionne explicitement une autre gamme plus précise,
+        # elle ne doit pas être assimilée à la gamme DICA sélectionnée.
+        longest=max(matched,key=len) if matched else ""
+        if longest!=requested and requested in longest:
+            return -35
+        return 20
+    # L'annonce ne précise pas sa gamme : elle reste exploitable.
+    return 0
+
+def score_result(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None):
     title=str(r.get("title","")); snippet=str(r.get("snippet","")); text=f"{title} {snippet}"; low=text.lower(); score=0
     if norm(brand) in norm(low): score+=25
     model_score=model_match_score(low,model)
     if model_score<=0:
         return 0
     score+=model_score
+    if dica_gamme:
+        gamme_score=dica_gamme_score(text,brand,model,year,dica_gamme)
+        if gamme_score<0:
+            return 0
+        score+=gamme_score
     if re.search(rf"\b{re.escape(str(year))}\b",low): score+=20
     ks=extract_kms(text)
     if ks:
@@ -263,7 +293,7 @@ def is_unavailable(r):
 def is_aggregation(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower()
     return any(w in text for w in AGGREGATOR_WORDS)
-def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None):
+def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None):
     price,rkm=parse_price_km(r)
     text=f"{r.get('title','')} {r.get('snippet','')}"
     title_years=extract_years(str(r.get("title","")))
@@ -276,7 +306,7 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None):
         return None
     if not title_years and year not in snippet_years:
         return None
-    score=score_result(r,brand,model,year,target_km,hp,transmission)
+    score=score_result(r,brand,model,year,target_km,hp,transmission,dica_gamme)
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
     if is_aggregation(r): score-=10
     if score<65: return None
@@ -290,7 +320,7 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None):
 def home(): return send_from_directory("static","index.html")
 @app.post("/api/cote")
 def cote():
-    data=request.get_json(force=True); category=str(data.get("category","camping")).strip().lower(); brand=str(data.get("brand","")).strip(); model=str(data.get("model","")).strip()
+    data=request.get_json(force=True); category=str(data.get("category","camping")).strip().lower(); brand=str(data.get("brand","")).strip(); model=str(data.get("model","")).strip(); dica_gamme=str(data.get("dica_gamme","")).strip()
     cv_raw=str(data.get("cv","")).strip()
     hp_raw=str(data.get("hp","")).strip(); transmission=str(data.get("transmission","")).strip() or None
     try: year=int(data.get("year")); km=int(data.get("km")); cv=int(cv_raw) if cv_raw else None; hp=int(hp_raw) if hp_raw else None
@@ -304,7 +334,8 @@ def cote():
     hp_query=f" {hp} ch" if hp else ""
     transmission_query=f" {transmission.lower()}" if transmission else ""
     market_term="camping-car" if category=="camping" else ("fourgon aménagé" if category=="fourgon" else "van aménagé")
-    queries=[f'"{brand} {model}" {year}{hp_query}{transmission_query} {market_term} occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" occasion',f'"{brand} {model}" {year} {market_term} occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
+    gamme_query=f' "{dica_gamme}"' if dica_gamme else ""
+    queries=[f'"{brand} {model}"{gamme_query} {year}{hp_query}{transmission_query} {market_term} occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" occasion',f'"{brand} {model}" {year} {market_term} occasion prix',f'site:leboncoin.fr "{brand} {model}" {year}',f'site:paruvendu.fr "{brand} {model}" {year}',f'site:hunyvers.com "{brand} {model}" {year}',f'site:camping-car.com "{brand} {model}" {year}']
     results=[]
     for q in queries:
         try:
@@ -318,7 +349,7 @@ def cote():
         if key[0]: dedup[key]=r
     rows=[]; context=[]
     for r in dedup.values():
-        row=comparable_row(r,brand,model,year,km,hp,transmission)
+        row=comparable_row(r,brand,model,year,km,hp,transmission,dica_gamme)
         if not row: continue
         (context if row["km"] is None else rows).append(row)
     rows.sort(key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True); context.sort(key=lambda x:x["score"],reverse=True)
@@ -326,7 +357,7 @@ def cote():
     transmission_fallback=bool(transmission and len(matching_rows)<3)
     primary=(matching_rows if not transmission_fallback else rows)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
     if len(values)<3: primary=(primary+context)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
-    if len(values)<3: return jsonify({"status":"insufficient","category":category,"category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car"),"comparables":primary,"context":context[:5],"dica":dica,"message":"Moins de 3 comparables suffisamment fiables ont été trouvés sur le marché actuel."})
+    if len(values)<3: return jsonify({"status":"insufficient","category":category,"dica_gamme":dica_gamme,"category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car"),"dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],"dica":dica,"message":"Moins de 3 comparables suffisamment fiables ont été trouvés sur le marché actuel."})
     med=statistics.median(values)
     filtered_values=list(values)
     excluded_values=[]
