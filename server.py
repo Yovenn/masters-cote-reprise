@@ -76,7 +76,7 @@ _dica_vf = {"records": _dica_vf_records}
 DICA_PL = []
 import glob
 for _path in sorted(glob.glob(os.path.join(BASE_DIR, "data", "dica32_poids_lourds_*.json"))):
-    _m = re.search(r"dica32_poids_lourds_(20\\d{2})", os.path.basename(_path))
+    _m = re.search(r"dica32_poids_lourds_(20\d{2})", os.path.basename(_path))
     if not _m:
         continue
     _year = int(_m.group(1))
