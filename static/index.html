@@ -178,7 +178,7 @@ function showHistory(){
 function filterHistory(){var q=(document.getElementById('historySearch').value||'').toLowerCase();document.querySelectorAll('.history-item').forEach(function(e){e.style.display=!q||e.dataset.search.includes(q)?'block':'none'})}
 function newSearch(){document.getElementById('out').innerHTML='';document.getElementById('status').style.display='none';['brand','model','year','km','cv','hp','transmission','clientName','plate'].forEach(function(id){var el=document.getElementById(id);if(el)el.value=''});var cat=document.getElementById('category');if(cat){cat.value='camping';updateCategoryUI();}document.getElementById('accessories').innerHTML='';window.scrollTo({top:0,behavior:'smooth'});document.getElementById('brand').focus()}var __dicaCatalogCache={};
 function dicaCatalogKey(){return document.getElementById('category')?.value||'camping'}
-async function loadDicaCatalog(){
+async async function loadDicaCatalog(){
   var cat=dicaCatalogKey();
   if(__dicaCatalogCache[cat]) return __dicaCatalogCache[cat];
   try{
