@@ -299,8 +299,9 @@ def is_aggregation(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower()
     return any(w in text for w in AGGREGATOR_WORDS)
 def experimental_brand_value(results, brand, year, category):
-    """Calcule un coefficient expérimental de marque à partir d'annonces rapprochées d'une référence DICA de la même marque/année/catégorie."""
+    """Coefficient marque strict : même année/catégorie, annonces reliées à une référence DICA, médiane et filtrage des ratios atypiques."""
     candidates=[]
+    seen_ads=set()
     for ad in results:
         if is_new(ad) or is_unavailable(ad) or is_aggregation(ad):
             continue
@@ -311,13 +312,23 @@ def experimental_brand_value(results, brand, year, category):
         ad_years=extract_years(text)
         if not ad_years or year not in ad_years:
             continue
+
+        # Une annonce ne peut contribuer qu'une seule fois.
+        ad_key=norm(ad.get("title","")) or norm(text)
+        if ad_key in seen_ads:
+            continue
+
         best=None
         for r in DICA:
             if r.get("year")!=year or r.get("brand_norm")!=norm(brand):
                 continue
-            if category=="van" and r.get("type")!="V": continue
-            if category=="fourgon" and r.get("type")!="F": continue
-            if category=="camping" and r.get("type") in ("F","V"): continue
+            if category=="van" and r.get("type")!="V":
+                continue
+            if category=="fourgon" and r.get("type")!="F":
+                continue
+            if category=="camping" and r.get("type") in ("F","V"):
+                continue
+
             ms=model_match_score(text, r.get("model",""))
             if ms<=0:
                 continue
@@ -327,8 +338,10 @@ def experimental_brand_value(results, brand, year, category):
                 continue
             if best is None or ms > best[0]:
                 best=(ms,r)
+
         if not best:
             continue
+
         dr=best[1]
         ref=dica_ref_km(dr["year"],dr.get("type"))
         if km is None:
@@ -337,15 +350,52 @@ def experimental_brand_value(results, brand, year, category):
             corr_revente=dr["revente"]-(km-ref)*DICA_OVER_KM_RATE
         else:
             corr_revente=dr["revente"]+(ref-km)*DICA_UNDER_KM_RATE
+
         if corr_revente<=0:
             continue
         ratio=price/corr_revente
-        if 0.45<=ratio<=1.35:
-            candidates.append({"ratio":ratio,"price":price,"dica_revente":round(corr_revente),"title":ad.get("title","")})
+
+        # Bornes de sécurité avant calcul statistique.
+        if not 0.45<=ratio<=1.35:
+            continue
+
+        seen_ads.add(ad_key)
+        candidates.append({
+            "ratio":ratio,
+            "price":price,
+            "dica_revente":round(corr_revente),
+            "title":ad.get("title",""),
+            "dica_model":dr.get("model",""),
+            "dica_gamme":dr.get("gamme","")
+        })
+
+    # Pas de coefficient si l'échantillon est trop faible.
     if len(candidates)<5:
         return None
-    coef=statistics.median([x["ratio"] for x in candidates])
-    return {"coefficient":round(coef,3),"comparables":len(candidates),"examples":candidates[:5]}
+
+    ratios=[x["ratio"] for x in candidates]
+    median_ratio=statistics.median(ratios)
+
+    # Filtrage robuste des annonces atypiques par MAD.
+    deviations=[abs(v-median_ratio) for v in ratios]
+    mad=statistics.median(deviations)
+    if mad>0:
+        limit=3*mad
+        filtered=[x for x in candidates if abs(x["ratio"]-median_ratio)<=limit]
+    else:
+        filtered=[x for x in candidates if median_ratio*0.90<=x["ratio"]<=median_ratio*1.10]
+
+    # Le coefficient n'est utilisable que si au moins 5 observations restent.
+    if len(filtered)<5:
+        return None
+
+    coef=statistics.median([x["ratio"] for x in filtered])
+    return {
+        "coefficient":round(coef,3),
+        "comparables":len(filtered),
+        "candidates_total":len(candidates),
+        "examples":filtered[:5]
+    }
 
 def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
     price,rkm=parse_price_km(r)
