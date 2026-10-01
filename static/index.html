@@ -207,7 +207,7 @@ function fillSelect(el,items,placeholder){
     el.appendChild(o);
   });
 }
-function dicaCategoryChanged(){
+async function dicaCategoryChanged(){
   var records=await loadDicaCatalog();
   var years=[...new Set(records.map(function(r){return Number(r.year)}))].sort(function(a,b){return b-a});
   fillSelect(document.getElementById('year'),years.map(function(y){return {value:y,label:String(y)}}),'Choisir une année…');
