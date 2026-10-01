@@ -249,15 +249,17 @@ def dica_gamme_score(text,brand,model,year,requested_gamme):
             candidates.append(g)
     text_norm=norm(text)
     matched=[g for g in candidates if g in text_norm]
-    if requested in matched:
-        # Si l'annonce mentionne explicitement une autre gamme plus précise,
-        # elle ne doit pas être assimilée à la gamme DICA sélectionnée.
-        longest=max(matched,key=len) if matched else ""
-        if longest!=requested and requested in longest:
-            return -35
+    if not matched:
+        # L'annonce ne précise pas sa gamme : elle reste exploitable.
+        return 0
+    # Parmi les gammes présentes dans le texte, la plus longue est généralement
+    # la plus précise : TWIN SPORTS doit primer sur TWIN, par exemple.
+    longest=max(matched,key=len)
+    if longest==requested:
         return 20
-    # L'annonce ne précise pas sa gamme : elle reste exploitable.
-    return 0
+    # Si une autre gamme DICA de la même famille/modèle est explicitement citée,
+    # on l'écarte plutôt que de la faire entrer dans la cote de la gamme choisie.
+    return -35
 
 def score_result(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None):
     title=str(r.get("title","")); snippet=str(r.get("snippet","")); text=f"{title} {snippet}"; low=text.lower(); score=0
