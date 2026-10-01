@@ -177,23 +177,13 @@ function showHistory(){
 }
 function filterHistory(){var q=(document.getElementById('historySearch').value||'').toLowerCase();document.querySelectorAll('.history-item').forEach(function(e){e.style.display=!q||e.dataset.search.includes(q)?'block':'none'})}
 function newSearch(){document.getElementById('out').innerHTML='';document.getElementById('status').style.display='none';['brand','model','year','km','cv','hp','transmission','clientName','plate'].forEach(function(id){var el=document.getElementById(id);if(el)el.value=''});var cat=document.getElementById('category');if(cat){cat.value='camping';updateCategoryUI();}document.getElementById('accessories').innerHTML='';window.scrollTo({top:0,behavior:'smooth'});document.getElementById('brand').focus()}var __dicaCatalogCache={};
-function dicaCatalogKey(){return document.getElementById('category')?.value||'camping'}
 async function loadDicaCatalog(){
-  var cat=dicaCatalogKey();
+  var cat=(document.getElementById('category')?.value||'camping').toLowerCase();
   if(__dicaCatalogCache[cat]) return __dicaCatalogCache[cat];
-  try{
-    var r=await fetch('/api/dica/catalog?category='+encodeURIComponent(cat),{cache:'no-store'});
-    if(!r.ok) throw new Error('Catalogue DICA indisponible ('+r.status+')');
-    var d=await r.json();
-    var records=Array.isArray(d.records)?d.records:[];
-    __dicaCatalogCache[cat]=records;
-    return records;
-  }catch(e){
-    console.error('Catalogue DICA:',e);
-    var status=document.getElementById('status');
-    if(status){status.style.display='block';status.textContent='⚠️ Impossible de charger le catalogue DICA : '+e.message;}
-    return [];
-  }
+  var r=await fetch('/api/dica/catalog?category='+encodeURIComponent(cat)+'&_='+Date.now(),{cache:'no-store'});
+  if(!r.ok) throw new Error('Catalogue indisponible ('+r.status+')');
+  var d=await r.json();
+  return (__dicaCatalogCache[cat]=Array.isArray(d.records)?d.records:[]);
 }
 function fillSelect(el,items,placeholder){
   if(!el)return;
@@ -209,48 +199,52 @@ function fillSelect(el,items,placeholder){
 }
 async function dicaCategoryChanged(){
   var records=await loadDicaCatalog();
-  var years=[...new Set(records.map(function(r){return Number(r.year)}))].sort(function(a,b){return b-a});
+  var years=[...new Set(records.map(function(r){return Number(r.year)}).filter(Boolean))].sort(function(a,b){return b-a});
   fillSelect(document.getElementById('year'),years.map(function(y){return {value:y,label:String(y)}}),'Choisir une année…');
   fillSelect(document.getElementById('brand'),[],'Choisir une année…');
   fillSelect(document.getElementById('model'),[],'Choisir une année et une marque…');
   window.__catalogSelection=null;
+  return records;
 }
 async function dicaYearChanged(){
   var records=await loadDicaCatalog(),year=Number(document.getElementById('year').value);
-  if(!year){
-    fillSelect(document.getElementById('brand'),[],'Choisir une année…');
-    fillSelect(document.getElementById('model'),[],'Choisir une année et une marque…');
-    return;
-  }
+  fillSelect(document.getElementById('model'),[],'Choisir une marque…');
+  if(!year){fillSelect(document.getElementById('brand'),[],'Choisir une année…');return records;}
   var brands=[...new Set(records.filter(function(r){return Number(r.year)===year}).map(function(r){return r.brand}))].sort(function(a,b){return a.localeCompare(b,'fr')});
   fillSelect(document.getElementById('brand'),brands.map(function(b){return {value:b,label:b}}),'Choisir une marque…');
-  fillSelect(document.getElementById('model'),[],'Choisir une marque…');
   document.getElementById('hp').value='';
   window.__catalogSelection=null;
+  return records;
 }
 async function dicaBrandChanged(){
   var records=await loadDicaCatalog(),year=Number(document.getElementById('year').value),brand=document.getElementById('brand').value;
-  if(!year||!brand){fillSelect(document.getElementById('model'),[],'Choisir une année et une marque…');return}
-  var rows=records.filter(function(r){return Number(r.year)===year&&r.brand===brand});
+  fillSelect(document.getElementById('model'),[],'Choisir une référence…');
+  if(!year||!brand)return records;
   var seen={},models=[];
-  rows.forEach(function(r){
+  records.filter(function(r){return Number(r.year)===year&&r.brand===brand}).forEach(function(r){
     var hp=(r.motorisation||'').match(/(\d{2,3})\s*ch/i);
     var key=(r.gamme||'')+'|'+(r.model||'')+'|'+(r.motorisation||'');
     if(seen[key])return;seen[key]=1;
     models.push({value:r.model||'',label:(r.gamme?(r.gamme+' · '):'')+(r.model||'')+(r.motorisation?' — '+r.motorisation:''),hp:hp?hp[1]:'',gamme:r.gamme||'',motorisation:r.motorisation||''});
   });
   models.sort(function(a,b){return a.label.localeCompare(b.label,'fr')});
-  fillSelect(document.getElementById('model'),models,'Choisir une référence DICA…');
+  fillSelect(document.getElementById('model'),models,'Choisir une référence…');
   document.getElementById('hp').value='';
   window.__catalogSelection=null;
+  return records;
 }
 function dicaModelChanged(){
-  var sel=document.getElementById('model'), opt=sel&&sel.options[sel.selectedIndex];
-  if(!opt||!opt.value){window.__catalogSelection=null;return}
-  if(opt.dataset.hp) document.getElementById('hp').value=opt.dataset.hp;
+  var sel=document.getElementById('model'),opt=sel&&sel.options[sel.selectedIndex];
+  if(!opt||!opt.value){window.__catalogSelection=null;return;}
+  if(opt.dataset.hp)document.getElementById('hp').value=opt.dataset.hp;
   window.__catalogSelection={brand:document.getElementById('brand').value,model:opt.value,gamme:opt.dataset.gamme||'',motorisation:opt.dataset.motorisation||''};
 }
-function updateCategoryUI(){var cat=document.getElementById('category')?.value||'camping';var title=document.getElementById('vehicleTitle');if(title)title.textContent=cat==='van'?'Évaluer un van aménagé':cat==='fourgon'?'Évaluer un fourgon aménagé':'Évaluer un camping-car';}function vehicleRisk(d){
+function updateCategoryUI(){
+  var cat=document.getElementById('category')?.value||'camping';
+  var title=document.getElementById('vehicleTitle');
+  if(title)title.textContent=cat==='van'?'Évaluer un van aménagé':cat==='fourgon'?'Évaluer un fourgon aménagé':'Évaluer un camping-car';
+}
+function vehicleRisk(d){
   var score=0,notes=[];
   if((d.count||0)<5){score+=2;notes.push("peu de comparables")}
   if((d.excluded_count||0)>0){score+=1;notes.push("valeurs atypiques écartées")}
