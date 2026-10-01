@@ -520,7 +520,7 @@ def dica_years():
 def dica_brands():
     category=str(request.args.get("category","camping")).strip().lower()
     year_raw=str(request.args.get("year","")).strip()
-    if category not in ("camping","van","fourgon") or not year_raw.isdigit():
+    if category not in ("camping","poids_lourd","van","fourgon") or not year_raw.isdigit():
         return jsonify({"error":"Paramètres invalides."}),400
     year=int(year_raw)
     brands=sorted({
@@ -537,7 +537,7 @@ def dica_models():
     category=str(request.args.get("category","camping")).strip().lower()
     year_raw=str(request.args.get("year","")).strip()
     brand=str(request.args.get("brand","")).strip()
-    if category not in ("camping","van","fourgon") or not year_raw.isdigit() or not brand:
+    if category not in ("camping","poids_lourd","van","fourgon") or not year_raw.isdigit() or not brand:
         return jsonify({"error":"Paramètres invalides."}),400
     year=int(year_raw)
     rows=[]
@@ -566,17 +566,17 @@ def cote():
     data=request.get_json(force=True); category=str(data.get("category","camping")).strip().lower(); brand=str(data.get("brand","")).strip(); model=str(data.get("model","")).strip(); dica_gamme=str(data.get("dica_gamme","")).strip()
     cv_raw=str(data.get("cv","")).strip()
     hp_raw=str(data.get("hp","")).strip(); transmission=str(data.get("transmission","")).strip() or None
-    try: year=int(data.get("year")); km=int(data.get("km")); cv=int(cv_raw) if cv_raw else None; hp=int(hp_raw) if hp_raw else None
+    try: year=int(data.get("year")); km=int(data.get("km")); ptac=int(data.get("ptac")) if str(data.get("ptac","")).strip() else None; cv=int(cv_raw) if cv_raw else None; hp=int(hp_raw) if hp_raw else None
     except (TypeError,ValueError): return jsonify({"error":"Année et kilométrage invalides."}),400
-    if category not in ("camping","van","fourgon"): return jsonify({"error":"Catégorie invalide."}),400
-    if not brand or not model or year<2010 or km<0 or (cv is not None and (cv<1 or cv>50)) or (hp is not None and (hp<50 or hp>500)) or (transmission not in (None,"Automatique","Manuelle")): return jsonify({"error":"Merci de renseigner des informations valides."}),400
+    if category not in ("camping","poids_lourd","van","fourgon"): return jsonify({"error":"Catégorie invalide."}),400
+    if not brand or not model or year<2010 or km<0 or (category=="poids_lourd" and (ptac is None or ptac<3501)) or (cv is not None and (cv<1 or cv>50)) or (hp is not None and (hp<50 or hp>500)) or (transmission not in (None,"Automatique","Manuelle")): return jsonify({"error":"Merci de renseigner des informations valides."}),400
     if not SERPER_API_KEY: return jsonify({"error":"SERPER_API_KEY manquante sur le serveur."}),500
     accessories=data.get("accessories") or []
     options_total, option_details=options_value(accessories)
-    dica=dica_matches(brand,model,year,km,hp,options_total,category)
+    dica=[] if category=="poids_lourd" else dica_matches(brand,model,year,km,hp,options_total,category)
     hp_query=f" {hp} ch" if hp else ""
     transmission_query=f" {transmission.lower()}" if transmission else ""
-    market_term="camping-car" if category=="camping" else ("fourgon aménagé" if category=="fourgon" else "van aménagé")
+    market_term="camping-car poids lourd" if category=="poids_lourd" else ("camping-car" if category=="camping" else ("fourgon aménagé" if category=="fourgon" else "van aménagé"))
     gamme_query=f' "{dica_gamme}"' if dica_gamme else ""
     queries=[f'"{brand} {model}"{gamme_query} {year}{hp_query}{transmission_query} {market_term} occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" {market_term} occasion',f'"{brand} {model}" {year} {market_term} occasion prix',f'site:leboncoin.fr "{brand} {model}" {year} {market_term}',f'site:paruvendu.fr "{brand} {model}" {year} {market_term}',f'site:hunyvers.com "{brand} {model}" {year} {market_term}',f'site:camping-car.com "{brand} {model}" {year} {market_term}']
     results=[]
@@ -622,13 +622,13 @@ def cote():
                 continue
         brand_unique={x.get("link"):x for x in brand_results if x.get("link")}
         experimental_brand=experimental_brand_value(list(brand_unique.values()),brand,year,category,requested_gamme=dica_gamme,requested_model=model)
-        if experimental_brand and len(dica)==1:
+        if category!="poids_lourd" and experimental_brand and len(dica)==1:
             resale=round(dica[0]["revente_corrigee"]*experimental_brand["coefficient"])
             masters=max(0,resale-MASTERS_FRAIS)
             return jsonify({
                 "status":"experimental",
-                "category":category,
-                "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car"),
+                "category":category,"ptac":ptac,
+                "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),
                 "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],
                 "dica":dica,"dica_ambiguous":False,"dica_near":[],
                 "market":None,"market_low":None,"market_high":None,
@@ -639,8 +639,8 @@ def cote():
                 "message":"Marché insuffisant pour établir une cote modèle. Valeur estimative calculée à partir d'un coefficient marché observé pour la marque, appliqué au prix supposé de revente DICA corrigé. Les 8 000 € Masters sont déduits du prix supposé de revente."
             })
         return jsonify({
-            "status":"insufficient","category":category,
-            "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car"),
+            "status":"insufficient","category":category,"ptac":ptac,
+            "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),
             "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],"dica":dica,
             "dica_ambiguous":len(dica)>1,
             "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if not dica else [],
@@ -692,5 +692,5 @@ def cote():
     if len(dica)==1:
         experimental_market_gap=round(market-dica[0]["revente_corrigee"])
         experimental_professional_value=round(dica[0]["reprise_corrigee"] + (experimental_market_gap*DICA_RECALAGE_FACTOR))
-    return jsonify({"status":"ok","category":category,"category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car"),"comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"transmission":transmission,"transmission_fallback":transmission_fallback,"transmission_counts":transmission_counts,"transmission_gap":transmission_gap,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_ambiguous":len(dica)>1,"dica_near":dica_near,"quality":{"comparables":len(filtered),"atypiques":len(excluded_values),"transmission_fallback":transmission_fallback,"km_comparables":sum(1 for x in primary if x.get("km") is not None),"sans_km":len(context)},"experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":experimental_market_gap,"experimental_professional_value":experimental_professional_value,"accessories":option_details,"accessories_value":options_total,"dica_reference_km":(dica[0]["reference_km"] if dica else (dica_near[0]["reference_km"] if dica_near else dica_ref_km(year, "V" if category=="van" else "F" if category=="fourgon" else None))),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    return jsonify({"status":"ok","category":category,"ptac":ptac,"category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),"comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"transmission":transmission,"transmission_fallback":transmission_fallback,"transmission_counts":transmission_counts,"transmission_gap":transmission_gap,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_ambiguous":len(dica)>1,"dica_near":dica_near,"quality":{"comparables":len(filtered),"atypiques":len(excluded_values),"transmission_fallback":transmission_fallback,"km_comparables":sum(1 for x in primary if x.get("km") is not None),"sans_km":len(context)},"experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":experimental_market_gap,"experimental_professional_value":experimental_professional_value,"accessories":option_details,"accessories_value":options_total,"dica_reference_km":(dica[0]["reference_km"] if dica else (dica_near[0]["reference_km"] if dica_near else dica_ref_km(year, "V" if category=="van" else "F" if category=="fourgon" else None))),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
