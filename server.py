@@ -76,7 +76,7 @@ def parse_price_km(r):
     return (ps[0] if ps else None),(ks[0] if ks else None)
 def extract_transmission(text):
     t=(text or "").lower()
-    if re.search(r"\b(?:bo[iî]te\s*)?(?:auto(?:matique)?|bva|9g[- ]tronic|8g[- ]tronic|e[- ]shift|comfort[- ]matic|robotis[ée]e)\b",t):
+    if re.search(r"\b(?:bo[iî]te\s*)?(?:auto(?:matique)?|bva|matic|9g[- ]tronic|8g[- ]tronic|e[- ]shift|comfort[- ]matic|robotis[ée]e)\b",t):
         return "Automatique"
     if re.search(r"\b(?:bo[iî]te\s*)?(?:manuelle|bvm)\b",t):
         return "Manuelle"
