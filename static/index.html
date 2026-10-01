@@ -230,7 +230,7 @@ async function dicaBrandChanged(){
   try{
     var d=await dicaJson('/api/dica/models?category='+encodeURIComponent(cat)+'&year='+encodeURIComponent(year)+'&brand='+encodeURIComponent(brand));
     var models=(d.records||[]).map(function(r){
-      var hp=(r.motorisation||'').match(/(\\d{2,3})\\s*ch/i);
+      var hp=(r.motorisation||'').match(/(\d{2,3})\s*ch/i);
       return {value:r.model||'',label:(r.gamme?(r.gamme+' · '):'')+(r.model||'')+(r.motorisation?' — '+r.motorisation:''),hp:hp?hp[1]:'',gamme:r.gamme||'',motorisation:r.motorisation||''};
     });
     fillSelect(document.getElementById('model'),models,'Choisir une référence DICA…');
