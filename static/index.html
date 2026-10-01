@@ -250,7 +250,7 @@ function dicaModelChanged(){
   if(opt.dataset.hp) document.getElementById('hp').value=opt.dataset.hp;
   window.__catalogSelection={brand:document.getElementById('brand').value,model:opt.value,gamme:opt.dataset.gamme||'',motorisation:opt.dataset.motorisation||''};
 }
-function updateCategoryUI(){var cat=document.getElementById('category')?.value||'camping';var title=document.getElementById('vehicleTitle');if(title)title.textContent=cat==='van'?'Évaluer un van aménagé':cat==='fourgon'?'Évaluer un fourgon aménagé':'Évaluer un camping-car';dicaCategoryChanged();}function vehicleRisk(d){
+function updateCategoryUI(){var cat=document.getElementById('category')?.value||'camping';var title=document.getElementById('vehicleTitle');if(title)title.textContent=cat==='van'?'Évaluer un van aménagé':cat==='fourgon'?'Évaluer un fourgon aménagé':'Évaluer un camping-car';}function vehicleRisk(d){
   var score=0,notes=[];
   if((d.count||0)<5){score+=2;notes.push("peu de comparables")}
   if((d.excluded_count||0)>0){score+=1;notes.push("valeurs atypiques écartées")}
