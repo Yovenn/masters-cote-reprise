@@ -309,7 +309,7 @@ def is_unavailable(r):
 def is_aggregation(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower()
     return any(w in text for w in AGGREGATOR_WORDS)
-def experimental_brand_value(results, brand, year, category):
+def experimental_brand_value(results, brand, year, category, requested_gamme=None, requested_model=None):
     """Coefficient marque strict : même année/catégorie, annonces reliées à une référence DICA, médiane et filtrage des ratios atypiques."""
     candidates=[]
     seen_ads=set()
@@ -340,15 +340,23 @@ def experimental_brand_value(results, brand, year, category):
             if category=="camping" and r.get("type") in ("F","V"):
                 continue
 
-            ms=model_match_score(text, r.get("model",""))
+            model_for_match=requested_model or r.get("model","")
+            ms=model_match_score(text, model_for_match)
             if ms<=0:
+                continue
+            # Le coefficient de marque doit respecter la gamme DICA choisie.
+            # Une annonce qui cite explicitement une autre gamme est exclue ;
+            # une annonce qui ne précise pas la gamme reste exploitable.
+            gs=dica_gamme_score(text, brand, model_for_match, year, requested_gamme, category) if requested_gamme else 0
+            if gs < 0:
                 continue
             rhp=motor_hp(r.get("motorisation",""))
             hps=extract_hp(text)
             if hps and rhp and rhp not in hps:
                 continue
-            if best is None or ms > best[0]:
-                best=(ms,r)
+            combined=ms+gs
+            if best is None or combined > best[0]:
+                best=(combined,r)
 
         if not best:
             continue
@@ -523,7 +531,7 @@ def cote():
             except requests.RequestException:
                 continue
         brand_unique={x.get("link"):x for x in brand_results if x.get("link")}
-        experimental_brand=experimental_brand_value(list(brand_unique.values()),brand,year,category)
+        experimental_brand=experimental_brand_value(list(brand_unique.values()),brand,year,category,dica_gamme=dica_gamme,requested_model=model)
         if experimental_brand and len(dica)==1:
             resale=round(dica[0]["revente_corrigee"]*experimental_brand["coefficient"])
             masters=max(0,resale-MASTERS_FRAIS)
