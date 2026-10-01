@@ -174,6 +174,18 @@ def dica_matches(brand,model,year,km,hp=None,options_value_total=0,category="cam
         else: corr=(ref-km)*DICA_UNDER_KM_RATE; rev=r["revente"]+corr
         rev=round(rev)
         out.append({"year":r["year"],"horsepower":rhp,"brand":r["brand"],"gamme":r["gamme"],"model":r["model"],"motorisation":r["motorisation"],"type":r["type"],"neuf":r["neuf"],"revente":r["revente"],"reprise":r["reprise"],"reference_km":ref,"km_correction":round(corr),"revente_corrigee":rev,"reprise_corrigee":round(r["reprise"] + ((rev-r["revente"]) * DICA_REPRISE_FACTOR)),"options_value":options_value_total,"revente_avec_options":round(rev+options_value_total),"reprise_avec_options":round(rev*DICA_REPRISE_FACTOR+options_value_total),"page":r["page"]})
+    # Si plusieurs lignes DICA restent possibles, on ne choisit jamais
+    # arbitrairement une gamme/motorisation. Une ligne n'est prioritaire que
+    # lorsque la saisie permet de l'identifier sans ambiguïté.
+    if len(out) > 1:
+        target_key=dica_model_key(model)
+        exact=[x for x in out if dica_model_key(x["model"]) == target_key]
+        if len(exact)==1:
+            out=exact
+        else:
+            same_hp=[x for x in out if hp is not None and x["horsepower"] == hp]
+            if len(same_hp)==1:
+                out=same_hp
     return out
 def dica_near_matches(brand,model,year,km,hp=None,options_value_total=0,category="camping"):
     b,m=norm(brand),norm(model)
