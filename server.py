@@ -32,7 +32,7 @@ with open(os.path.join(BASE_DIR, "dica32_camping_cars.json"), encoding="utf-8") 
     _dica = json.load(f)
 _dica_vf_records = []
 for _year in range(2016, 2026):
-    _path = os.path.join(BASE_DIR, f"dica32_vans_fourgons_{_year}.json")
+    _path = os.path.join(BASE_DIR, "data", f"dica32_vans_fourgons_{_year}.json")
     try:
         with open(_path, encoding="utf-8") as f:
             _year_data = json.load(f)
