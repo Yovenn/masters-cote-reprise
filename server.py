@@ -391,8 +391,29 @@ def cote():
     matching_rows=[x for x in rows if x.get("transmission")==transmission] if transmission else rows
     transmission_fallback=bool(transmission and len(matching_rows)<3)
     primary=(matching_rows if not transmission_fallback else rows)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
-    if len(values)<3: primary=(primary+context)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
-    if len(values)<3: return jsonify({"status":"insufficient","category":category,"dica_gamme":dica_gamme,"category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car"),"dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],"dica":dica,"message":"Moins de 3 comparables suffisamment fiables ont été trouvés sur le marché actuel."})
+    # Les annonces sans kilométrage restent du contexte uniquement :
+    # elles ne doivent jamais entrer dans la médiane ni permettre de fabriquer
+    # une cote lorsqu'il n'y a pas assez de comparables qualifiés.
+    if len(values)<3:
+        return jsonify({
+            "status":"insufficient",
+            "category":category,
+            "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car"),
+            "dica_gamme":dica_gamme,
+            "comparables":primary,
+            "context":context[:5],
+            "dica":dica,
+            "dica_ambiguous":len(dica)>1,
+            "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if not dica else [],
+            "quality":{
+                "comparables":len(values),
+                "km_comparables":len(values),
+                "sans_km":len(context),
+                "atypiques":0,
+                "transmission_fallback":transmission_fallback
+            },
+            "message":"Cote marché non calculée : moins de 3 comparables qualifiés avec kilométrage ont été trouvés. Les annonces sans kilométrage restent affichées à titre de contexte uniquement."
+        })
     med=statistics.median(values)
     filtered_values=list(values)
     excluded_values=[]
