@@ -325,41 +325,25 @@ def dica_near_matches(brand,model,year,km,hp=None,options_value_total=0,category
     return out[:5]
 
 def model_match_score(text,model):
-    raw=(text or "").lower(); model=(model or "").strip().lower()
-    if not model:return 0
-    if re.fullmatch(r"\d+",model): return 48 if re.search(rf"(?<!\d){re.escape(model)}(?!\d)",raw) else 0
-    compact=norm(model); compact_text=norm(raw)
-    if compact and compact in compact_text:
-        # Une finition voisine ne doit pas être assimilée au modèle demandé.
-        # Les séries spéciales peuvent toutefois être formulées différemment
-        # dans les annonces : « 696F 60 Edition » / « 696F 60 anniversaire ».
-        variant_words={"family","plus","supreme","sport","sports","elite","maxi","premium","edition","limited","exclusive","duo","xl","xs","l","s","m","g","gx","lj","sgx","slb","spb","4x4","60","anniversary","anniversaire"}
-        m=re.search(rf"(?<![a-z0-9]){re.escape(compact)}(?![a-z0-9])",compact_text)
-        if m:
-            tail=compact_text[m.end():].strip().split()
-            if tail and tail[0] in variant_words:
-                return 0
-            return 48
-    # Séries spéciales : les annonces séparent souvent les codes alphanumériques
-    # (« 696F » -> « 696 F ») et écrivent « 60e », « 60 ans » ou « 60 anniversaire »
-    # au lieu de « 60 Edition ». On exige néanmoins le modèle de base ET l'identifiant
-    # de série pour éviter de mélanger 696F standard et 696F 60e anniversaire.
-    requested_tokens=re.findall(r"[a-z0-9]+",norm(model))
-    if "60" in requested_tokens:
-        has_base=False
-        for tok in requested_tokens:
-            if tok in {"60","edition","anniversary","anniversaire"}:
-                continue
-            if len(tok)>=2 and re.search(rf"(?<![a-z0-9]){re.escape(tok[:-1])}\\s*{re.escape(tok[-1])}(?![a-z0-9])",raw):
-                has_base=True
-            elif tok and re.search(rf"(?<![a-z0-9]){re.escape(tok)}(?![a-z0-9])",compact_text):
-                has_base=True
-        has_60=bool(re.search(r"(?<!\\d)60(?:e|eme|ème|ans)?(?!\\d)",raw))
-        has_special=bool(re.search(r"\\b(?:edition|anniversaire|anniversary|ans)\\b",raw))
-        if has_base and has_60 and has_special:
-            return 48
-    parts=[p for p in re.split(r"[\s/-]+",model) if len(p)>=2]
-    return 48 if parts and all(p in raw for p in parts) else 0
+    """Matching generique de la reference modele."""
+    raw=(text or "").lower()
+    model=(model or "").strip().lower()
+    if not model:
+        return 0
+    compact=norm(model)
+    compact_text=norm(raw)
+    if not compact:
+        return 0
+    words=re.findall(r"[a-z0-9]+",compact_text)
+    wanted=re.findall(r"[a-z0-9]+",norm(model))
+    if model.isdigit():
+        return 48 if model in words else 0
+    if compact in compact_text:
+        return 48
+    if len(wanted)>1 and all(w in words for w in wanted):
+        return 48
+    return 0
+
 def dica_gamme_score(text,brand,model,year,requested_gamme,category="camping"):
     requested=norm(requested_gamme)
     if not requested:
