@@ -220,7 +220,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
     # contient le modèle/année demandés correspond généralement au véhicule.
     h1_matches=re.findall(r"<h1[^>]*>(.*?)</h1>",html,re.I|re.S)
     for raw_h1 in h1_matches:
-        h1_text=re.sub(r"\\s+"," ",unescape(re.sub(r"<[^>]+>"," ",raw_h1))).strip()
+        h1_text=re.sub(r"\s+"," ",unescape(re.sub(r"<[^>]+>"," ",raw_h1))).strip()
         h1_low=h1_text.lower()
         h1_years=extract_years(h1_text)
         h1_model_ok=bool(model_norm and model_norm in norm(h1_text))
@@ -237,9 +237,9 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
         kms_after=extract_kms(visible[:6000])
         if prices_after:
             km0=kms_after[0] if kms_after else None
-            add_score=260
+            add_score=400
             if target_km is not None and km0 is not None:
-                add_score += max(0,100-abs(km0-target_km)/300)
+                add_score += max(0,150-abs(km0-target_km)/200)
             candidates.append((add_score,prices_after[0],km0,target_year,h1_text))
 
     def add_candidate(price, km=None, year=None, name="", source_score=0):
@@ -749,7 +749,7 @@ def price_associated_year(r, price, target_year, target_km=None):
     snippet=str(r.get("snippet","") or "")
     text=f"{title} {snippet}"
     price_positions=[]
-    patterns=[r"(\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})\\s*€",r"€\\s*(\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})"]
+    patterns=[r"(\d{2,3}(?:[ .]\d{3})+|\d{4,6})\s*€",r"€\s*(\d{2,3}(?:[ .]\d{3})+|\d{4,6})"]
     for pat in patterns:
         for m in re.finditer(pat,text):
             try:
@@ -761,7 +761,7 @@ def price_associated_year(r, price, target_year, target_km=None):
     if not price_positions:
         return None
     years=[]
-    for m in re.finditer(r"\\b20(?:1\\d|2[0-9])\\b",text):
+    for m in re.finditer(r"\b20(?:1\d|2[0-9])\b",text):
         years.append((m.start(),int(m.group())))
     if not years:
         return None
