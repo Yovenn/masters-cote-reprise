@@ -746,7 +746,9 @@ def cote():
     # Filet de sécurité : certaines annonces omettent la marque dans le titre.
     queries.extend([
         f'"{model}" {year} {market_term} occasion',
-        f'"{model_compact}" {year} {market_term} occasion'
+        f'"{model_compact}" {year} {market_term} occasion',
+        f'site:netcampers.fr "{model}" {year} {market_term}',
+        f'site:annonces-caravaning.com "{model}" {year} {market_term}'
     ])
     # Déduplication des requêtes pour ne pas gaspiller les appels Serper.
     queries=list(dict.fromkeys(queries))
