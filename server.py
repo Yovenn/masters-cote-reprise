@@ -181,45 +181,47 @@ def parse_price_km(r, target_year=None, target_km=None):
     title=str(r.get("title","") or "")
     snippet=str(r.get("snippet","") or "")
     text=f"{title} {snippet}"
-    # Quand plusieurs prix sont présents dans un résultat (ancien prix,
-    # prix neuf, prix d'un autre véhicule de la page), choisir celui qui
-    # est le plus vraisemblablement associé au véhicule recherché.
-    if target_year is not None or target_km is not None:
-        candidates=[]
-        patterns=[r"(\d{2,3}(?:[ .]\d{3})+|\d{4,6})\s*€",r"€\s*(\d{2,3}(?:[ .]\d{3})+|\d{4,6})"]
-        for pat in patterns:
-            for m in re.finditer(pat,text):
-                try:
-                    value=clean_num(m.group(1))
-                except ValueError:
-                    continue
-                if not 10000<=value<=150000:
-                    continue
-                pos=m.start()
-                local=text[max(0,pos-180):min(len(text),m.end()+180)].lower()
-                score=0.0
-                if title and pos < len(title):
-                    score += 120
-                if target_km is not None:
-                    km_matches=list(re.finditer(r"\b(\d{1,3}(?:[ .]\d{3})|\d{3,6})\s*km\b",text.lower()))
-                    if km_matches:
-                        d=min(abs(pos-k.start()) for k in km_matches)
-                        score += max(0,50-d/80)
-                if target_year is not None:
-                    ymatches=list(re.finditer(r"\b20(?:1\d|2[0-9])\b",local))
-                    if any(int(m.group())==target_year for m in ymatches):
-                        score += 45
-                    elif any(int(m.group())!=target_year for m in ymatches):
-                        score -= 45
-                if re.search(r"\b(?:neuf|neuve|2025|2026)\b",local) and target_year not in (2025,2026):
-                    score -= 35
-                if value not in [x[0] for x in candidates]:
-                    candidates.append((value,score))
-        if candidates:
-            candidates.sort(key=lambda x:(x[1],-x[0]),reverse=True)
-            price=candidates[0][0]
-        else:
-            price=None
+    candidates=[]
+    patterns=[r"(\d{2,3}(?:[ .]\d{3})+|\d{4,6})\s*€",r"€\s*(\d{2,3}(?:[ .]\d{3})+|\d{4,6})"]
+    for pat in patterns:
+        for m in re.finditer(pat,text):
+            try:
+                value=clean_num(m.group(1))
+            except ValueError:
+                continue
+            if not 10000<=value<=150000:
+                continue
+            pos=m.start()
+            local=text[max(0,pos-260):min(len(text),m.end()+260)].lower()
+            score=0.0
+            # Un prix présent dans le titre est prioritaire : les snippets
+            # peuvent mélanger plusieurs annonces d'une même page.
+            if pos < len(title):
+                score += 80
+            if target_km is not None:
+                km_matches=list(re.finditer(r"\b(\d{1,3}(?:[ .]\d{3})|\d{3,6})\s*km\b",text.lower()))
+                if km_matches:
+                    nearest=min(km_matches,key=lambda k:abs(pos-k.start()))
+                    distance=abs(pos-nearest.start())
+                    km_value=clean_num(nearest.group(1))
+                    if km_value==target_km:
+                        score += 140
+                        score += max(0,60-distance/10)
+                    else:
+                        score -= min(80,abs(km_value-target_km)/500)
+            if target_year is not None:
+                ymatches=[int(m.group()) for m in re.finditer(r"\b20(?:1\d|2[0-9])\b",local)]
+                if target_year in ymatches:
+                    score += 55
+                elif ymatches and target_year not in ymatches:
+                    score -= 70
+            if re.search(r"\b(?:neuf|neuve|2025|2026)\b",local) and target_year not in (2025,2026):
+                score -= 60
+            if value not in [x[0] for x in candidates]:
+                candidates.append((value,score))
+    if candidates:
+        candidates.sort(key=lambda x:(x[1],-x[0]),reverse=True)
+        price=candidates[0][0]
     else:
         ps=extract_prices(text)
         price=ps[0] if ps else None
@@ -721,8 +723,8 @@ def cote():
     # (ex. « MC4 262 » / « MC 4 262 » / « MC LOUIS MC4 262 »).
     # On multiplie les formulations de recherche, mais le filtrage final
     # reste strict sur le modèle, l'année et la catégorie.
-    model_compact=re.sub(r"\\s+","",str(model or ""))
-    model_spaced=re.sub(r"(?<=[A-Za-z])(?=\\d)|(?<=\\d)(?=[A-Za-z])"," ",str(model or ""))
+    model_compact=re.sub(r"\s+","",str(model or ""))
+    model_spaced=re.sub(r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])"," ",str(model or ""))
     model_variants=[]
     for mv in (str(model).strip(),model_compact,model_spaced.strip()):
         if mv and mv.lower() not in [x.lower() for x in model_variants]:
@@ -735,6 +737,7 @@ def cote():
             f'"{brand} {mv}" {year} {market_term} occasion prix',
             f'site:leboncoin.fr "{brand} {mv}" {year} {market_term}',
             f'site:paruvendu.fr "{brand} {mv}" {year} {market_term}',
+            f'site:paruvendu.fr/a/caravaning-occasion/camping-car/ "{brand} {mv}" "{year}" "{km} km"',
             f'site:hunyvers.com "{brand} {mv}" {year} {market_term}',
             f'site:camping-car.com "{brand} {mv}" {year} {market_term}'
         ])
@@ -754,7 +757,7 @@ def cote():
     uniq={r["link"]:r for r in results if r.get("link")}
     dedup={}
     for r in uniq.values():
-        key=(norm(r.get("title","")),parse_price_km(r)[0],parse_price_km(r)[1])
+        key=(norm(r.get("title","")),parse_price_km(r,year,km)[0],parse_price_km(r,year,km)[1])
         if key[0]: dedup[key]=r
     rows=[]; context=[]
     for r in dedup.values():
@@ -802,7 +805,7 @@ def cote():
                 "experimental_resale":resale,"experimental_professional_value":masters,
                 "trade":masters,"masters_frais":MASTERS_FRAIS,
                 "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback,"brand_comparables":experimental_brand["comparables"]},
-                "message":"Marché insuffisant pour établir une cote modèle. Valeur estimative calculée à partir d'un coefficient marché observé pour la marque, appliqué au prix supposé de revente DICA corrigé. Les 8 000 € Masters sont déduits du prix supposé de revente."
+                "message":"Marché insuffisant pour établir une cote modèle. Valeur estimative calculée à partir d'un coefficient marché observé pour la marque, appliqué au prix supposé de revente DICA corrigé. Les 10 000 € Masters sont déduits du prix supposé de revente."
             })
         experimental_professional_value = dica[0]["reprise_corrigee"] if len(dica)==1 else None
         experimental_market_gap = None
