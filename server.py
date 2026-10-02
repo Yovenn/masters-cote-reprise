@@ -264,7 +264,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
 
     page_text=valid_text(html)
     page_card_count=len(re.findall(
-        r"\\bchallenger\\s+(?:graphite\\s+|start\\s+|break\\s+|etape\\s+|étape\\s+|premium\\s+)?328\\b",
+        r"\bchallenger\s+(?:graphite\s+|start\s+|break\s+|etape\s+|étape\s+|premium\s+)?328\b",
         page_text, re.I
     ))
     probable_catalogue=any(m in url_low for m in catalogue_markers) or page_card_count>3
