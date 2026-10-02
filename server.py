@@ -1,4 +1,4 @@
-import os, re, statistics, json, requests, unicodedata
+import os, re, statistics, json, requests, unicodedata, subprocess, sys
 try:
     from playwright.sync_api import sync_playwright
     PLAYWRIGHT_AVAILABLE = True
@@ -188,7 +188,7 @@ def fetch_detail_browser_html(url):
     """Récupère le HTML rendu par Chromium pour les pages chargées en JavaScript."""
     if not PLAYWRIGHT_AVAILABLE:
         return None, None
-    try:
+    def run_browser():
         with sync_playwright() as p:
             browser=p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
             page=browser.new_page(user_agent="Mozilla/5.0 (compatible; MastersCoteReprise/1.2)")
@@ -197,8 +197,17 @@ def fetch_detail_browser_html(url):
             except Exception: pass
             html=page.content(); final_url=page.url; browser.close()
             return html, final_url
-    except Exception:
-        return None, None
+    try:
+        return run_browser()
+    except Exception as first_error:
+        # Sur Render, Chromium peut ne pas encore être présent après pip install.
+        # Installation à la demande, uniquement si le premier lancement échoue.
+        try:
+            subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"],
+                           check=True, timeout=180, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return run_browser()
+        except Exception:
+            return None, None
 
 def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None):
     """
