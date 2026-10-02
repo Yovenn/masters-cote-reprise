@@ -186,7 +186,7 @@ def parse_price_km(r, target_year=None, target_km=None):
     # est le plus vraisemblablement associé au véhicule recherché.
     if target_year is not None or target_km is not None:
         candidates=[]
-        patterns=[r"(\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})\\s*€",r"€\\s*(\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})"]
+        patterns=[r"(\d{2,3}(?:[ .]\d{3})+|\d{4,6})\s*€",r"€\s*(\d{2,3}(?:[ .]\d{3})+|\d{4,6})"]
         for pat in patterns:
             for m in re.finditer(pat,text):
                 try:
@@ -201,17 +201,17 @@ def parse_price_km(r, target_year=None, target_km=None):
                 if title and pos < len(title):
                     score += 120
                 if target_km is not None:
-                    km_matches=list(re.finditer(r"\\b(\\d{1,3}(?:[ .]\\d{3})|\\d{3,6})\\s*km\\b",text.lower()))
+                    km_matches=list(re.finditer(r"\b(\d{1,3}(?:[ .]\d{3})|\d{3,6})\s*km\b",text.lower()))
                     if km_matches:
                         d=min(abs(pos-k.start()) for k in km_matches)
                         score += max(0,50-d/80)
                 if target_year is not None:
-                    ymatches=list(re.finditer(r"\\b20(?:1\\d|2[0-9])\\b",local))
+                    ymatches=list(re.finditer(r"\b20(?:1\d|2[0-9])\b",local))
                     if any(int(m.group())==target_year for m in ymatches):
                         score += 45
                     elif any(int(m.group())!=target_year for m in ymatches):
                         score -= 45
-                if re.search(r"\\b(?:neuf|neuve|2025|2026)\\b",local) and target_year not in (2025,2026):
+                if re.search(r"\b(?:neuf|neuve|2025|2026)\b",local) and target_year not in (2025,2026):
                     score -= 35
                 if value not in [x[0] for x in candidates]:
                     candidates.append((value,score))
