@@ -36,7 +36,8 @@ def poids_lourd_km_rules(text):
 def poids_lourd_matches(brand, model, year, km, hp=None, ptac=None):
     out=[]
     for r in DICA_PL:
-        if r["year"]!=year or r["brand_norm"]!=norm(brand): continue
+        if r["year"]!=year: continue
+        if r.get("brand_norm") and r["brand_norm"]!=norm(brand): continue
         if not dica_model_match(model,r.get("model",""),""): continue
         if ptac is not None and abs(float(r.get("ptac") or 0)-(float(ptac)/1000.0))>0.15: continue
         rhp=motor_hp(r.get("carrier",""))
@@ -86,7 +87,12 @@ for _path in sorted(glob.glob(os.path.join(BASE_DIR, "data", "dica32_poids_lourd
         for row in _rows:
             if isinstance(row, list) and len(row) >= 8:
                 brand, model, type_, carrier, ptac, neuf, revente, page = row[:8]
-                DICA_PL.append({"year":_year,"brand":brand,"brand_norm":norm(brand),"model":model,"model_norm":norm(model),"type":type_,"carrier":carrier,"ptac":ptac,"neuf":neuf,"revente":revente,"page":page})
+            elif isinstance(row, list) and len(row) >= 7:
+                brand = ""
+                model, type_, carrier, ptac, neuf, revente, page = row[:7]
+            else:
+                continue
+            DICA_PL.append({"year":_year,"brand":brand,"brand_norm":norm(brand),"model":model,"model_norm":norm(model),"type":type_,"carrier":carrier,"ptac":ptac,"neuf":neuf,"revente":revente,"page":page})
     except FileNotFoundError:
         continue
 DICA = []
