@@ -86,6 +86,8 @@ for _path in sorted(glob.glob(os.path.join(BASE_DIR, "data", "dica32_poids_lourd
     # On ignore les anciens morceaux OCR qui mélangeaient des lignes 2024.
     if _year == 2023 and _name != "dica32_poids_lourds_2023_clean.json":
         continue
+    if _year == 2024 and _name != "dica32_poids_lourds_2024_clean.json":
+        continue
     if _year == 2017 and _name != "dica32_poids_lourds_2017_clean.json":
         continue
     if _year == 2018 and _name != "dica32_poids_lourds_2018_clean.json":
