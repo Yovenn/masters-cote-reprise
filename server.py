@@ -688,7 +688,34 @@ def cote():
     transmission_query=f" {transmission.lower()}" if transmission else ""
     market_term="camping-car poids lourd" if category=="poids_lourd" else ("camping-car" if category=="camping" else ("fourgon aménagé" if category=="fourgon" else "van aménagé"))
     gamme_query=f' "{dica_gamme}"' if dica_gamme else ""
-    queries=[f'"{brand} {model}"{gamme_query} {year}{hp_query}{transmission_query} {market_term} occasion',f'"{brand} {model}" {year}{hp_query} "{km} km" {market_term} occasion',f'"{brand} {model}" {year} {market_term} occasion prix',f'site:leboncoin.fr "{brand} {model}" {year} {market_term}',f'site:paruvendu.fr "{brand} {model}" {year} {market_term}',f'site:hunyvers.com "{brand} {model}" {year} {market_term}',f'site:camping-car.com "{brand} {model}" {year} {market_term}']
+    # Les sites d'annonces écrivent souvent les modèles différemment
+    # (ex. « MC4 262 » / « MC 4 262 » / « MC LOUIS MC4 262 »).
+    # On multiplie les formulations de recherche, mais le filtrage final
+    # reste strict sur le modèle, l'année et la catégorie.
+    model_compact=re.sub(r"\\s+","",str(model or ""))
+    model_spaced=re.sub(r"(?<=[A-Za-z])(?=\\d)|(?<=\\d)(?=[A-Za-z])"," ",str(model or ""))
+    model_variants=[]
+    for mv in (str(model).strip(),model_compact,model_spaced.strip()):
+        if mv and mv.lower() not in [x.lower() for x in model_variants]:
+            model_variants.append(mv)
+    queries=[]
+    for mv in model_variants:
+        queries.extend([
+            f'"{brand} {mv}"{gamme_query} {year}{hp_query}{transmission_query} {market_term} occasion',
+            f'"{brand} {mv}" {year}{hp_query} "{km} km" {market_term} occasion',
+            f'"{brand} {mv}" {year} {market_term} occasion prix',
+            f'site:leboncoin.fr "{brand} {mv}" {year} {market_term}',
+            f'site:paruvendu.fr "{brand} {mv}" {year} {market_term}',
+            f'site:hunyvers.com "{brand} {mv}" {year} {market_term}',
+            f'site:camping-car.com "{brand} {mv}" {year} {market_term}'
+        ])
+    # Filet de sécurité : certaines annonces omettent la marque dans le titre.
+    queries.extend([
+        f'"{model}" {year} {market_term} occasion',
+        f'"{model_compact}" {year} {market_term} occasion'
+    ])
+    # Déduplication des requêtes pour ne pas gaspiller les appels Serper.
+    queries=list(dict.fromkeys(queries))
     results=[]
     for q in queries:
         try:
