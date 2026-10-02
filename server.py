@@ -1146,22 +1146,32 @@ def cote():
     # 80 pages maximum : suffisamment large pour ne plus rater une annonce
     # pertinente cachée derrière plusieurs résultats de recherche, tout en
     # gardant un temps de réponse raisonnable.
-    for _,r in detail_candidates[:10]:
+    # Scraping des pages détail en parallèle : les requêtes HTTP restent rapides
+    # et on évite de bloquer 10 fois 6 secondes l'une après l'autre.
+    def scrape_candidate(r):
         detail=fetch_detail_price_km(r,year,model,km)
-        if detail and detail.get("price"):
-            # Vérification finale : la page détail doit réellement correspondre
-            # à l'année et au modèle demandés. Si elle fournit un kilométrage,
-            # il devient prioritaire sur celui du snippet.
-            detail_year=detail.get("year")
-            detail_title=str(detail.get("title","") or "")
-            if detail_year is not None and detail_year!=year:
-                continue
-            if model and norm(model) not in norm(detail_title):
-                # Certains titres utilisent « MC 4 262 » au lieu de « MC4 262 ».
-                # On accepte néanmoins la correspondance compacte du modèle.
-                if norm(re.sub(r"(?<=[A-Za-z])(?=\\d)|(?<=\\d)(?=[A-Za-z])"," ",model)) not in norm(detail_title):
-                    continue
-            r["_detail"]=detail
+        if not detail or not detail.get("price"):
+            return None
+        detail_year=detail.get("year")
+        detail_title=str(detail.get("title","") or "")
+        if detail_year is not None and detail_year!=year:
+            return None
+        if model and norm(model) not in norm(detail_title):
+            compact_model=norm(re.sub(r"(?<=[A-Za-z])(?=\\d)|(?<=\\d)(?=[A-Za-z])"," ",model))
+            if compact_model not in norm(detail_title):
+                return None
+        return r,detail
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures=[pool.submit(scrape_candidate,r) for _,r in detail_candidates[:8]]
+        for fut in as_completed(futures):
+            try:
+                result=fut.result()
+            except Exception:
+                result=None
+            if result:
+                r,detail=result
+                r["_detail"]=detail
 
     rows=[]; context=[]
     for r in dedup.values():
