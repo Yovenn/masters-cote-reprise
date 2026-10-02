@@ -177,10 +177,54 @@ def extract_prices(text):
                 if 10000<=v<=150000 and v not in out: out.append(v)
             except ValueError: pass
     return out
-def parse_price_km(r):
-    text=f"{r.get('title','')} {r.get('snippet','')}"
-    ps=extract_prices(text); ks=extract_kms(text)
-    return (ps[0] if ps else None),(ks[0] if ks else None)
+def parse_price_km(r, target_year=None, target_km=None):
+    title=str(r.get("title","") or "")
+    snippet=str(r.get("snippet","") or "")
+    text=f"{title} {snippet}"
+    # Quand plusieurs prix sont présents dans un résultat (ancien prix,
+    # prix neuf, prix d'un autre véhicule de la page), choisir celui qui
+    # est le plus vraisemblablement associé au véhicule recherché.
+    if target_year is not None or target_km is not None:
+        candidates=[]
+        patterns=[r"(\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})\\s*€",r"€\\s*(\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})"]
+        for pat in patterns:
+            for m in re.finditer(pat,text):
+                try:
+                    value=clean_num(m.group(1))
+                except ValueError:
+                    continue
+                if not 10000<=value<=150000:
+                    continue
+                pos=m.start()
+                local=text[max(0,pos-180):min(len(text),m.end()+180)].lower()
+                score=0.0
+                if title and pos < len(title):
+                    score += 120
+                if target_km is not None:
+                    km_matches=list(re.finditer(r"\\b(\\d{1,3}(?:[ .]\\d{3})|\\d{3,6})\\s*km\\b",text.lower()))
+                    if km_matches:
+                        d=min(abs(pos-k.start()) for k in km_matches)
+                        score += max(0,50-d/80)
+                if target_year is not None:
+                    ymatches=list(re.finditer(r"\\b20(?:1\\d|2[0-9])\\b",local))
+                    if any(int(m.group())==target_year for m in ymatches):
+                        score += 45
+                    elif any(int(m.group())!=target_year for m in ymatches):
+                        score -= 45
+                if re.search(r"\\b(?:neuf|neuve|2025|2026)\\b",local) and target_year not in (2025,2026):
+                    score -= 35
+                if value not in [x[0] for x in candidates]:
+                    candidates.append((value,score))
+        if candidates:
+            candidates.sort(key=lambda x:(x[1],-x[0]),reverse=True)
+            price=candidates[0][0]
+        else:
+            price=None
+    else:
+        ps=extract_prices(text)
+        price=ps[0] if ps else None
+    ks=extract_kms(text)
+    return price,(ks[0] if ks else None)
 def extract_transmission(text):
     t=(text or "").lower()
     if re.search(r"\b(?:bo[iî]te\s*)?(?:auto(?:matique)?|bva|matic|9g[- ]tronic|8g[- ]tronic|e[- ]shift|comfort[- ]matic|robotis[ée]e)\b",t):
@@ -528,7 +572,7 @@ def experimental_brand_value(results, brand, year, category, requested_gamme=Non
     }
 
 def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
-    price,rkm=parse_price_km(r)
+    price,rkm=parse_price_km(r,year,target_km)
     text=f"{r.get('title','')} {r.get('snippet','')}"
     title_years=extract_years(str(r.get("title","")))
     snippet_years=extract_years(str(r.get("snippet","")))
