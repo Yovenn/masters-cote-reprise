@@ -101,6 +101,19 @@ for _path in sorted(glob.glob(os.path.join(BASE_DIR, "data", "dica32_poids_lourd
             DICA_PL.append({"year":_year,"brand":brand,"brand_norm":norm(brand),"model":model,"model_norm":norm(model),"type":type_,"carrier":carrier,"ptac":ptac,"neuf":neuf,"revente":revente,"page":page})
     except FileNotFoundError:
         continue
+# Référentiel marque PL : reconstruction prudente de la marque lorsque les anciens fichiers ne la contenaient pas.
+PL_CARRIER_BRANDS={"mercedes","iveco","fiat","ford","citroen","citroën","man","renault","volvo","scania"}
+
+def _pl_brand_lookup():
+    idx={}
+    for _r in DICA_PL:
+        _b=str(_r.get("brand") or "").strip()
+        _m=norm(_r.get("model",""))
+        if not _m or norm(_b) in PL_CARRIER_BRANDS:
+            continue
+        idx.setdefault(_m,set()).add(_b)
+    return idx
+
 DICA = []
 for row in (_dica["records"] + _dica_vf.get("records", [])):
     if isinstance(row, list):
@@ -115,6 +128,18 @@ for row in (_dica["records"] + _dica_vf.get("records", [])):
         row["brand_norm"] = norm(row.get("brand",""))
         row["model_norm"] = norm(row.get("model",""))
         DICA.append(row)
+
+# Corrige les anciens enregistrements PL classés par porteur lorsqu'un même modèle
+# possède une marque unique connue dans le référentiel PL.
+PL_MODEL_BRANDS=_pl_brand_lookup()
+for _r in DICA_PL:
+    _b=norm(_r.get("brand",""))
+    if _b in PL_CARRIER_BRANDS or not _r.get("brand"):
+        _m=norm(_r.get("model",""))
+        _brands=PL_MODEL_BRANDS.get(_m,set())
+        if len(_brands)==1:
+            _r["brand"]=next(iter(_brands))
+            _r["brand_norm"]=norm(_r["brand"])
 NEW_WORDS=("neuf","neuve","0 km","0km","jamais immatriculé","jamais immatricule","véhicule neuf","vehicule neuf","stock neuf","déstockage","destockage","non immatriculé","non immatricule","modèle neuf","modele neuf")
 AGGREGATOR_WORDS=("page 2","page 3","page 4","page 5","tous les véhicules","toutes les annonces","résultats de recherche","resultats de recherche","annonces similaires")
 def clean_num(v): return int(re.sub(r"[^0-9]","",str(v)))
