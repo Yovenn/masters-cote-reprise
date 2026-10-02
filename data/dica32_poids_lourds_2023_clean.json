@@ -2328,5 +2328,205 @@
     352850,
     209940,
     111
+  ],
+  [
+    "MORELO",
+    "79 F",
+    "I",
+    "Iveco Eurocargo 100 E 22 6,7 l 220 ch",
+    10,
+    290300,
+    172720,
+    111
+  ],
+  [
+    "MORELO",
+    "79 F",
+    "I",
+    "Iveco Eurocargo 75 E 21 4,5 l 207 ch",
+    7.5,
+    274200,
+    163140,
+    111
+  ],
+  [
+    "MORELO",
+    "79 L",
+    "I",
+    "Iveco Eurocargo 100 E 22 6,7 l 220 ch",
+    10,
+    290300,
+    172720,
+    111
+  ],
+  [
+    "MORELO",
+    "79 L",
+    "I",
+    "Iveco Eurocargo 75 E 21 4,5 l 207 ch",
+    7.5,
+    274200,
+    163140,
+    111
+  ],
+  [
+    "MORELO",
+    "82 FB",
+    "I",
+    "Iveco Eurocargo 100 E 22 6,7 l 220 ch",
+    10,
+    293350,
+    174540,
+    111
+  ],
+  [
+    "MORELO",
+    "82 FB",
+    "I",
+    "Iveco Eurocargo 75 E 21 4,5 l 207 ch",
+    7.5,
+    277200,
+    164930,
+    111
+  ],
+  [
+    "MORELO",
+    "82 LB",
+    "I",
+    "Iveco Eurocargo 100 E 22 6,7 l 220 ch",
+    10,
+    293350,
+    174540,
+    111
+  ],
+  [
+    "MORELO",
+    "82 LB",
+    "I",
+    "Iveco Eurocargo 75 E 21 4,5 l 207 ch",
+    7.5,
+    277200,
+    164930,
+    111
+  ],
+  [
+    "MORELO",
+    "82 MQ",
+    "I",
+    "Iveco Eurocargo 100 E 22 6,7 l 217 ch",
+    10,
+    298400,
+    177540,
+    111
+  ],
+  [
+    "MORELO",
+    "82 MQ",
+    "I",
+    "Iveco Eurocargo 75 E 21 4,5 l 207 ch",
+    7.5,
+    281250,
+    167340,
+    111
+  ],
+  [
+    "MORELO",
+    "84 M",
+    "I",
+    "Iveco Eurocargo 100 E 22 6,7 l 217 ch",
+    10,
+    295350,
+    175730,
+    111
+  ],
+  [
+    "MORELO",
+    "84 M",
+    "I",
+    "Iveco Eurocargo 75 E 21 4,5 l 207 ch",
+    7.5,
+    279250,
+    166150,
+    111
+  ],
+  [
+    "CARTHAGO",
+    "I 4.9 LE L",
+    "I",
+    "Mercedes Sprinter 2,0 l 150 ch",
+    5,
+    133740,
+    61550,
+    111
+  ],
+  [
+    "CARTHAGO",
+    "I 4.9 LE L superior",
+    "I",
+    "Fiat Ducato 2,2l 180 ch",
+    5,
+    138270,
+    63630,
+    111
+  ],
+  [
+    "CARTHAGO",
+    "I 4.9 LE L superior",
+    "I",
+    "Mercedes Sprinter 2,0 l 150 ch",
+    5,
+    138530,
+    63750,
+    111
+  ],
+  [
+    "CARTHAGO",
+    "I 5.0 QB",
+    "I",
+    "Fiat Ducato 2,2 I- 180 ch",
+    5,
+    132880,
+    61150,
+    111
+  ],
+  [
+    "CARTHAGO",
+    "I 5.0 QB",
+    "I",
+    "Mercedes Sprinter 2,0 l 150 ch",
+    5,
+    133130,
+    61270,
+    111
+  ],
+  [
+    "CARTHAGO",
+    "I 5.0 QB L",
+    "I",
+    "Fiat Ducato 2,2 I- 180 ch",
+    5,
+    134860,
+    62060,
+    111
+  ],
+  [
+    "CARTHAGO",
+    "I 5.0 QB L superior",
+    "I",
+    "Fiat Ducato 2,2l 180 ch",
+    5,
+    139650,
+    64270,
+    111
+  ],
+  [
+    "CARTHAGO",
+    "I 5.0 QB L superior",
+    "I",
+    "Mercedes Sprinter 2,0 l 150 ch",
+    5,
+    139950,
+    64410,
+    111
   ]
 ]
