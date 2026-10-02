@@ -691,9 +691,17 @@ def model_match_score(text,model):
     return 0
 
 def dica_gamme_score(text,brand,model,year,requested_gamme,category="camping"):
+    """
+    Filtrage strict de finition/gamme.
+
+    Quand une gamme DICA précise est sélectionnée, une annonce qui ne donne
+    pas sa finition n'est plus considérée comme comparable : nous préférons
+    afficher « marché insuffisant » plutôt que mélanger des versions.
+    """
     requested=norm(requested_gamme)
     if not requested:
         return 0
+
     candidates=[]
     for r in DICA:
         if r.get("brand_norm")!=norm(brand) or r.get("year")!=year:
@@ -706,18 +714,19 @@ def dica_gamme_score(text,brand,model,year,requested_gamme,category="camping"):
         g=norm(r.get("gamme",""))
         if g and g not in candidates:
             candidates.append(g)
+
     text_norm=norm(text)
     matched=[g for g in candidates if g in text_norm]
     if not matched:
-        # L'annonce ne précise pas sa gamme : elle reste exploitable.
-        return 0
-    # Parmi les gammes présentes dans le texte, la plus longue est généralement
-    # la plus précise : TWIN SPORTS doit primer sur TWIN, par exemple.
+        # Si une finition précise est demandée, une annonce sans finition
+        # explicite est insuffisante pour une cote de version.
+        return -35
+
     longest=max(matched,key=len)
     if longest==requested:
         return 20
-    # Si une autre gamme DICA de la même famille/modèle est explicitement citée,
-    # on l'écarte plutôt que de la faire entrer dans la cote de la gamme choisie.
+
+    # Une autre finition explicitement mentionnée est exclue.
     return -35
 
 def score_result(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
@@ -1077,14 +1086,19 @@ def cote():
     # Recherche volontairement courte : on privilégie quelques requêtes très ciblées
     # plutôt qu'une longue série d'appels Serper séquentiels.
     queries=[
-        f'"{brand} {model}" {year} {market_term} occasion',
-        f'"{brand} {model}" {year} "{km} km" {market_term} occasion',
-        f'"{brand} {model}" {year} {market_term} prix occasion',
-        f'site:leboncoin.fr "{brand} {model}" {year} {market_term}'
+        f'"{brand} {model}" "{dica_gamme}" {year} {market_term} occasion',
+        f'"{brand} {model}" "{dica_gamme}" {year} "{km} km" {market_term} occasion',
+        f'"{brand} {model}" "{dica_gamme}" {year} prix occasion',
+        f'site:leboncoin.fr "{brand} {model}" "{dica_gamme}" {year} {market_term}'
     ]
     # Si une gamme DICA précise existe, on ajoute une recherche ciblée.
     if dica_gamme:
         queries.append(f'"{brand} {model}" "{dica_gamme}" {year} {market_term} occasion')
+    if dica_gamme:
+        queries.extend([
+            f'"{brand} {model}" {year} {market_term} occasion -"Start Edition" -"Etape Edition"',
+            f'"{brand} {model}" {year} {market_term} occasion -"Start Edition" -"Etape Edition" -"Graphite"'
+        ])
     queries=list(dict.fromkeys(queries))
     # Déduplication des requêtes pour ne pas gaspiller les appels Serper.
     queries=list(dict.fromkeys(queries))
