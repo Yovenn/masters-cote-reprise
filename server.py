@@ -2,7 +2,7 @@ import os, re, statistics, json, requests, unicodedata, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 try:
     from playwright.sync_api import sync_playwright
-    PLAYWRIGHT_AVAILABLE = True
+    PLAYWRIGHT_AVAILABLE = False
 except Exception:
     sync_playwright = None
     PLAYWRIGHT_AVAILABLE = False
