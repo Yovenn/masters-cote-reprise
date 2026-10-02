@@ -9,6 +9,12 @@ except Exception:
 from html import unescape
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
+try:
+    from selectolax.lexbor import LexborHTMLParser
+    SELECTOLAX_AVAILABLE = True
+except Exception:
+    LexborHTMLParser = None
+    SELECTOLAX_AVAILABLE = False
 
 BASE_DIR = os.path.dirname(__file__)
 
@@ -212,84 +218,88 @@ def fetch_detail_browser_html(url):
 
 def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None):
     """
-    Scraping strict d'une page d'annonce.
+    Scraping léger et strict d'une page d'annonce.
 
-    Principe :
-    - ne jamais prendre arbitrairement le premier prix de la page ;
-    - priorité aux données structurées de l'offre (JSON-LD / meta) ;
-    - vérification modèle + année ;
-    - association prix/kilométrage par proximité dans le bloc de l'offre ;
-    - conservation du prix brut exact et de sa source pour empêcher qu'un
-      prix d'une autre annonce/version soit réutilisé.
+    Le HTML est parsé une seule fois avec Selectolax. Une valeur prix/km n'est
+    acceptée que si elle appartient au même bloc DOM que le modèle recherché.
+    Sur une page catalogue, on ne remonte jamais au conteneur parent qui
+    contient plusieurs annonces.
     """
     url=str(r.get("link","") or "").strip()
     if not url or not url.startswith(("http://","https://")):
         return None
+
     try:
         resp=requests.get(
             url,
-            headers={"User-Agent":"Mozilla/5.0 (compatible; MastersCoteReprise/1.1)"},
+            headers={"User-Agent":"Mozilla/5.0 (compatible; MastersCoteReprise/1.2)"},
             timeout=6,
             allow_redirects=True
         )
         if resp.status_code != 200 or not resp.text:
             return None
         html=resp.text
+        browser_url=resp.url
     except requests.RequestException:
-        resp=None
-        html=None
-
-    # Fallback navigateur pour les pages dont le contenu est généré en JavaScript.
-    browser_url=getattr(resp, "url", url) if resp is not None else url
-    if not html and PLAYWRIGHT_AVAILABLE:
-        html, browser_url = fetch_detail_browser_html(url)
-    if not html:
         return None
 
-    page_title=""
-    mt=re.search(r"<title[^>]*>(.*?)</title>",html,re.I|re.S)
-    if mt:
-        page_title=re.sub(r"\s+"," ",unescape(re.sub(r"<[^>]+>"," ",mt.group(1)))).strip()
+    if not SELECTOLAX_AVAILABLE:
+        return None
 
+    try:
+        tree=LexborHTMLParser(html)
+    except Exception:
+        return None
+
+    def node_text(node):
+        try:
+            return re.sub(r"\\s+"," ",node.text(separator=" ",strip=True)).strip()
+        except Exception:
+            return ""
+
+    def attr(node,name):
+        try:
+            return str(node.attributes.get(name,"") or "")
+        except Exception:
+            return ""
+
+    title_node=tree.css_first("title")
+    page_title=node_text(title_node) if title_node else ""
     model_norm=norm(target_model or "")
+    title_norm=norm(page_title)
     page_years=extract_years(page_title)
-    title_model_ok=bool(model_norm and model_norm in norm(page_title))
+    title_model_ok=bool(model_norm and model_norm in title_norm)
     title_year_ok=bool(target_year is None or target_year in page_years)
-    url_low=url.lower()
+
+    url_low=browser_url.lower()
     catalogue_markers=("/recherche","/search","/listing","/annonces","?q=","&q=","resultats","results","/stock")
 
-    def valid_text(txt):
-        txt=re.sub(r"\s+"," ",unescape(re.sub(r"<[^>]+>"," ",str(txt or "")))).strip()
-        return txt
-
-    page_text=valid_text(html)
+    body=tree.css_first("body")
+    body_text=node_text(body) if body else ""
     page_card_count=len(re.findall(
-        r"\bchallenger\s+(?:graphite\s+|start\s+|break\s+|etape\s+|étape\s+|premium\s+)?328\b",
-        page_text, re.I
+        r"\\bchallenger\\s+(?:graphite\\s+|start\\s+|break\\s+|etape\\s+|étape\\s+|premium\\s+)?328\\b",
+        body_text,re.I
     ))
     probable_catalogue=any(m in url_low for m in catalogue_markers) or page_card_count>3
 
-    def score_identity(name="", desc="", year=None, km=None):
-        txt=f"{name} {desc} {page_title}"
-        score=0.0
-        if model_norm and model_norm in norm(txt):
-            score += 100
-        elif model_norm:
+    def score_identity(text, km=None):
+        nt=norm(text)
+        if model_norm and model_norm not in nt:
             return -1000
-        years=extract_years(txt)
+        score=100.0 if model_norm else 0.0
+        years=extract_years(text)
         if target_year is not None:
             if target_year in years:
-                score += 80
+                score+=80
             elif years:
-                score -= 100
+                return -1000
         if target_km is not None and km is not None:
-            d=abs(int(km)-target_km)
-            score += max(0,100-d/250)
+            score+=max(0,100-abs(int(km)-target_km)/250)
         return score
 
     candidates=[]
 
-    def add_candidate(price, km=None, year=None, name="", desc="", source="unknown", base=0):
+    def add_candidate(price, km=None, year=None, text="", source="unknown", base=0):
         try:
             if isinstance(price,dict):
                 price=price.get("price")
@@ -299,27 +309,27 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
         if not 10000<=price<=150000:
             return
         km0=None
-        try:
-            if km is not None:
+        if km is not None:
+            try:
                 km0=clean_num(km)
                 if not 0<=km0<=300000:
                     km0=None
-        except Exception:
-            km0=None
-        sc=base+score_identity(name,desc,year,km0)
-        if sc < 0:
+            except Exception:
+                km0=None
+        sc=base+score_identity(text,km0)
+        if sc<0:
             return
         candidates.append({
-            "score":sc,"price":price,"km":km0,
-            "year":year,"name":str(name or ""),
-            "source":source
+            "score":sc,"price":price,"km":km0,"year":year,
+            "name":text[:500],"source":source
         })
 
-    # 1) JSON-LD : on ne retient une offre que si son produit correspond à
-    # l'annonce recherchée. C'est la source la plus fiable quand disponible.
-    for raw_json in re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',html,re.I|re.S):
+    # 1) JSON-LD : on exploite uniquement les produits qui identifient
+    # réellement le modèle. Selectolax évite le regex HTML sur tout le document.
+    for node in tree.css('script[type="application/ld+json"]'):
+        raw=node.text()
         try:
-            data=json.loads(unescape(raw_json))
+            data=json.loads(unescape(raw))
         except Exception:
             continue
         stack=data if isinstance(data,list) else [data]
@@ -332,154 +342,116 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
                 continue
             name=str(obj.get("name","") or "")
             desc=str(obj.get("description","") or "")
+            combined=f"{name} {desc}"
             offers=obj.get("offers")
             if isinstance(offers,dict):
                 offers=[offers]
             if isinstance(offers,list):
                 for offer in offers:
-                    if not isinstance(offer,dict):
+                    if not isinstance(offer,dict) or offer.get("price") is None:
                         continue
-                    price=offer.get("price")
-                    if price is None:
-                        continue
-                    combined=f"{name} {desc}"
                     kms=extract_kms(combined)
                     yrs=extract_years(combined)
                     add_candidate(
-                        price,
+                        offer.get("price"),
                         kms[0] if kms else None,
                         yrs[0] if yrs else None,
-                        name,desc,"jsonld",260
+                        combined,
+                        "jsonld",
+                        260
                     )
             stack.extend(v for v in obj.values() if isinstance(v,(dict,list)))
 
-    # 2) Meta prix : uniquement si le titre de la page identifie le modèle
-    # et l'année. Cela évite les pages catalogue.
+    # 2) Blocs DOM : on cible les cartes d'annonce avant les conteneurs généraux.
+    # Une carte doit contenir modèle + année + prix + kilométrage.
+    selectors=(
+        "article",
+        "li",
+        "[class*='card']",
+        "[class*='Card']",
+        "[class*='vehicle']",
+        "[class*='Vehicle']",
+        "[class*='annonce']",
+        "[class*='Annonce']",
+        "[class*='product']",
+        "[class*='Product']",
+        "[class*='offer']",
+        "[class*='Offer']"
+    )
+    seen=set()
+    for node in tree.css(",".join(selectors)):
+        txt=node_text(node)
+        if not txt or len(txt)>8000:
+            continue
+        key=norm(txt[:1800])
+        if key in seen:
+            continue
+        seen.add(key)
+        prices=extract_prices(txt)
+        kms=extract_kms(txt)
+        years=extract_years(txt)
+        if not prices or not kms:
+            continue
+        identity=score_identity(txt,kms[0])
+        if identity<0:
+            continue
+        if target_year is not None and target_year not in years:
+            continue
+        # Le kilométrage et le prix restent dans CE bloc DOM.
+        nearest_km=min(kms,key=lambda k:abs(k-(target_km if target_km is not None else k)))
+        nearest_year=min(years,key=lambda y:abs(y-target_year)) if years and target_year is not None else (years[0] if years else None)
+        for p in prices:
+            add_candidate(p,nearest_km,nearest_year,txt,"dom-card",180+identity)
+
+    # 3) Meta : seulement quand le titre de la page est lui-même une annonce.
     if title_model_ok and title_year_ok:
-        for tag in re.findall(r"<meta[^>]+>",html,re.I|re.S):
-            nm=re.search(r'(?:property|name)=["\']([^"\']+)["\']',tag,re.I)
-            ct=re.search(r'content=["\']([^"\']+)["\']',tag,re.I)
-            if not nm or not ct:
+        for node in tree.css("meta"):
+            key=(attr(node,"property") or attr(node,"name")).lower()
+            if key not in ("product:price:amount","og:price:amount","price"):
                 continue
-            key=nm.group(1).lower()
-            if key in ("product:price:amount","og:price:amount","price"):
-                add_candidate(ct.group(1),target_km,target_year,page_title,"","meta",190)
+            val=attr(node,"content")
+            if val:
+                add_candidate(val,target_km,target_year,page_title,"meta",190)
 
-    if not probable_catalogue:
-    # 3) Blocs HTML : on cherche des éléments qui ressemblent à une offre
-        # (price/prix + kilométrage) et on score le bloc entier. On ne prend plus
-        # jamais "le premier prix après le h1".
-        blocks=[]
-        patterns=[
-            r'<[^>]+(?:class|id)=["\'][^"\']*(?:price|prix|offer|offre|vehicle|vehicule|product|annonce)[^"\']*["\'][^>]*>.*?</[^>]+>',
-            r'<(?:article|section|li|div)[^>]*>.*?</(?:article|section|li|div)>'
-        ]
-        for pat in patterns:
-            try:
-                blocks.extend(re.findall(pat,html,re.I|re.S))
-            except re.error:
-                pass
-    
-        # Limite les blocs et déduplique les textes.
-        seen_blocks=set()
-        for raw in blocks[:2500]:
-            txt=valid_text(raw)
-            key=norm(txt[:2000])
-            if not txt or key in seen_blocks:
-                continue
-            seen_blocks.add(key)
-            if len(txt)>12000:
-                txt=txt[:12000]
-            prices=extract_prices(txt)
-            kms=extract_kms(txt)
-            years=extract_years(txt)
-            if not prices:
-                continue
-            # Un bloc doit identifier le modèle ou, au minimum, l'année cible.
-            identity=score_identity(txt,"",years[0] if years else None,kms[0] if kms else None)
-            if identity < 0:
-                continue
-            for p in prices:
-                nearest_km=min(kms,key=lambda k:abs(k-(target_km or k))) if kms else None
-                nearest_year=min(years,key=lambda y:abs(y-(target_year or y))) if years else None
-                add_candidate(p,nearest_km,nearest_year,txt[:300],txt,"html-block",120+max(0,identity))
-    
-        # 4) Dernier filet : texte autour du modèle. Les prix sont alors associés
-    # au kilométrage le plus proche, jamais à un prix provenant d'une autre
-    # occurrence éloignée dans la page.
-    if title_model_ok and title_year_ok and not probable_catalogue:
-        text=valid_text(html)
-        low=text.lower()
-        model_match=re.search(re.escape(str(target_model)),low,re.I) if target_model else None
-        if not model_match and target_model:
-            compact=re.sub(r"\s+",r"\\s*",re.escape(str(target_model)))
-            model_match=re.search(compact,low,re.I)
-        if model_match:
-            window=low[max(0,model_match.start()-1800):min(len(low),model_match.end()+3000)]
-            prices=extract_prices(window)
-            kms=extract_kms(window)
-            years=extract_years(window)
-            for p in prices:
-                nearest_km=min(kms,key=lambda k:abs(k-(target_km or k))) if kms else None
-                nearest_year=min(years,key=lambda y:abs(y-(target_year or y))) if years else None
-                add_candidate(p,nearest_km,nearest_year,page_title,window,"model-window",80)
-
-    # Second passage avec Chromium si requests n'a pas trouvé de prix fiable.
-    if not candidates and PLAYWRIGHT_AVAILABLE:
-        browser_html, browser_url = fetch_detail_browser_html(url)
-        if browser_html and browser_html != html:
-            visible=unescape(re.sub(r"<[^>]+>", " ", browser_html))
-            visible=re.sub(r"\s+", " ", visible)
-            low=visible.lower()
-            if target_model:
-                mm=re.search(re.escape(str(target_model)), low, re.I)
-                if not mm:
-                    compact=re.sub(r"\s+", r"\\s*", re.escape(str(target_model)))
-                    mm=re.search(compact, low, re.I)
-                if mm:
-                    window=low[max(0,mm.start()-2000):min(len(low),mm.end()+4000)]
-                    prices=extract_prices(window); kms=extract_kms(window); years=extract_years(window)
-                    for p in prices:
-                        nearest_km=min(kms,key=lambda k:abs(k-(target_km or k))) if kms else None
-                        nearest_year=min(years,key=lambda y:abs(y-(target_year or y))) if years else None
-                        add_candidate(p, nearest_km, nearest_year, page_title, window, "playwright-text", 120)
-
+    # 4) Sur une vraie page détail sans carte exploitable, on accepte le JSON-LD
+    # ou les meta uniquement. Pas de fenêtre de texte globale : c'est précisément
+    # ce qui créait les mélanges entre 57 990 € et 74 990 €.
     if not candidates:
         return None
 
-    # Une page catalogue peut contenir plusieurs véhicules. Sans donnée
-    # structurée identifiant une offre unique, on refuse l'association.
-    if probable_catalogue and not any(x["source"] in ("jsonld","meta") for x in candidates):
-        return None
+    if probable_catalogue:
+        # Une page catalogue n'est admise que si une carte DOM ou une donnée
+        # structurée identifie explicitement l'offre. On élimine les JSON-LD
+        # génériques de catalogue qui n'ont pas le modèle dans leur nom/description.
+        strict=[c for c in candidates if c["source"] in ("dom-card","jsonld","meta")]
+        if not strict:
+            return None
+        candidates=strict
 
-    # Déduplication des mêmes valeurs/source puis sélection par identité,
-    # proximité kilométrique et fiabilité de la source.
-    best={}
-    for c in candidates:
-        key=(c["price"],c["km"],c["source"],c["name"][:120])
-        if key not in best or c["score"]>best[key]["score"]:
-            best[key]=c
-    candidates=list(best.values())
+    # Si plusieurs cartes existent, le score d'identité + proximité km décide.
+    # En cas d'égalité, on privilégie la carte DOM plutôt qu'une donnée globale.
     candidates.sort(
         key=lambda c:(
             c["score"],
+            1 if c["source"]=="dom-card" else 0,
             1 if c["source"]=="jsonld" else 0,
-            -abs((c["km"] if c["km"] is not None else target_km or 0)-(target_km or c["km"] or 0))
+            -abs((c["km"] if c["km"] is not None else (target_km or 0))-(target_km or c["km"] or 0))
         ),
         reverse=True
     )
     chosen=candidates[0]
 
-    # Une page qui ne confirme pas l'année dans le titre/élément sélectionné
-    # ne doit pas fournir un prix au moteur.
-    chosen_years=extract_years(f"{chosen['name']} {page_title}")
+    chosen_text=chosen["name"]
+    chosen_years=extract_years(chosen_text+" "+page_title)
     if target_year is not None and chosen_years and target_year not in chosen_years:
+        return None
+    if model_norm and model_norm not in norm(chosen_text+" "+page_title):
         return None
 
     return {
         "price":chosen["price"],
         "km":chosen["km"],
-        "year":chosen["year"] if chosen["year"] is not None else (target_year if title_year_ok else None),
+        "year":chosen["year"] if chosen["year"] is not None else (target_year if target_year in chosen_years else None),
         "title":page_title,
         "source":"detail",
         "price_source":chosen["source"],
