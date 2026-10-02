@@ -77,10 +77,15 @@ _dica_vf = {"records": _dica_vf_records}
 DICA_PL = []
 import glob
 for _path in sorted(glob.glob(os.path.join(BASE_DIR, "data", "dica32_poids_lourds_*.json"))):
-    _m = re.search(r"dica32_poids_lourds_(20\d{2})", os.path.basename(_path))
+    _name = os.path.basename(_path)
+    _m = re.search(r"dica32_poids_lourds_(20\d{2})", _name)
     if not _m:
         continue
     _year = int(_m.group(1))
+    # 2023 a été retraité directement depuis les colonnes 2023 du PDF DICA.
+    # On ignore les anciens morceaux OCR qui mélangeaient des lignes 2024.
+    if _year == 2023 and _name != "dica32_poids_lourds_2023_clean.json":
+        continue
     try:
         with open(_path, encoding="utf-8") as f:
             _rows = json.load(f)
