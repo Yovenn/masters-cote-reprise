@@ -711,18 +711,64 @@ def experimental_brand_value(results, brand, year, category, requested_gamme=Non
         "examples":filtered[:5]
     }
 
+def price_associated_year(r, price, target_year, target_km=None):
+    """Détermine l'année réellement associée au prix dans un snippet.
+    Un résultat Google peut contenir plusieurs véhicules/dates ; on prend
+    l'année la plus proche du prix retenu, pas simplement n'importe quelle
+    année présente dans le snippet.
+    """
+    title=str(r.get("title","") or "")
+    snippet=str(r.get("snippet","") or "")
+    text=f"{title} {snippet}"
+    price_positions=[]
+    patterns=[r"(\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})\\s*€",r"€\\s*(\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})"]
+    for pat in patterns:
+        for m in re.finditer(pat,text):
+            try:
+                v=clean_num(m.group(1))
+            except ValueError:
+                continue
+            if v==price:
+                price_positions.append(m.start())
+    if not price_positions:
+        return None
+    years=[]
+    for m in re.finditer(r"\\b20(?:1\\d|2[0-9])\\b",text):
+        years.append((m.start(),int(m.group())))
+    if not years:
+        return None
+    # Si plusieurs occurrences du même prix existent, choisir celle la plus
+    # proche du kilométrage cible lorsqu'il est disponible.
+    pos=price_positions[0]
+    if len(price_positions)>1 and target_km is not None:
+        km_positions=[]
+        for m in re.finditer(r"\\b(\\d{1,3}(?:[ .]\\d{3})|\\d{3,6})\\s*km\\b",text.lower()):
+            try:
+                kv=clean_num(m.group(1))
+            except ValueError:
+                continue
+            km_positions.append((m.start(),kv))
+        if km_positions:
+            pos=min(price_positions,key=lambda p:min(abs(p-kp) for kp,kv in km_positions))
+    nearest=min(years,key=lambda y:abs(y[0]-pos))
+    # Une année très éloignée du prix n'est pas une association fiable.
+    return nearest[1] if abs(nearest[0]-pos)<=220 else None
+
 def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
     price,rkm=parse_price_km(r,year,target_km)
     text=f"{r.get('title','')} {r.get('snippet','')}"
     title_years=extract_years(str(r.get("title","")))
     snippet_years=extract_years(str(r.get("snippet","")))
-    # Une annonce n'entre dans la cote que si l'année du véhicule est
-    # explicitement identifiable. Si le titre donne une année, elle doit
-    # être exactement celle du véhicule évalué. Sinon, l'année recherchée
-    # doit au minimum apparaître dans le descriptif.
+    # Année stricte : si le titre porte une année différente, l'annonce est
+    # hors cible. Sinon, l'année doit être associée au prix retenu ; la simple
+    # présence de 2022 quelque part dans un snippet multi-annonces ne suffit
+    # plus.
     if title_years and year not in title_years:
         return None
-    if not title_years and year not in snippet_years:
+    associated_year=price_associated_year(r,price,year,target_km) if price else None
+    if associated_year is not None and associated_year!=year:
+        return None
+    if associated_year is None and year not in snippet_years:
         return None
     score=score_result(r,brand,model,year,target_km,hp,transmission,dica_gamme,category)
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
@@ -735,7 +781,6 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
             if ref_km is not None:
                 delta_km=rkm-target_km
                 km_adjustment=round(delta_km*(over_rate if delta_km>0 else under_rate))
-                km_adjustment=km_adjustment
         else:
             if rkm>target_km: km_adjustment=round((rkm-target_km)*DICA_OVER_KM_RATE)
             elif rkm<target_km: km_adjustment=-round((target_km-rkm)*DICA_UNDER_KM_RATE)
