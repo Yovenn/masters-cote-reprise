@@ -1080,11 +1080,7 @@ def cote():
         f'"{brand} {model}" {year} {market_term} occasion',
         f'"{brand} {model}" {year} "{km} km" {market_term} occasion',
         f'"{brand} {model}" {year} {market_term} prix occasion',
-        f'"{brand} {model_compact}" {year} {market_term} occasion',
-        f'site:leboncoin.fr "{brand} {model}" {year} {market_term}',
-        f'site:paruvendu.fr "{brand} {model}" {year} {market_term}',
-        f'site:hunyvers.com "{brand} {model}" {year} {market_term}',
-        f'site:camping-car.com "{brand} {model}" {year} {market_term}'
+        f'site:leboncoin.fr "{brand} {model}" {year} {market_term}'
     ]
     # Si une gamme DICA précise existe, on ajoute une recherche ciblée.
     if dica_gamme:
@@ -1107,7 +1103,7 @@ def cote():
             return q, []
     # Les recherches indépendantes sont lancées en parallèle pour éviter que
     # plusieurs appels réseau successifs fassent dépasser le délai de l'interface.
-    with ThreadPoolExecutor(max_workers=min(6,len(queries))) as pool:
+    with ThreadPoolExecutor(max_workers=min(5,len(queries))) as pool:
         futures=[pool.submit(serper_search,q) for q in queries]
         for fut in as_completed(futures):
             q,items=fut.result()
@@ -1163,7 +1159,7 @@ def cote():
         return r,detail
 
     with ThreadPoolExecutor(max_workers=4) as pool:
-        futures=[pool.submit(scrape_candidate,r) for _,r in detail_candidates[:8]]
+        futures=[pool.submit(scrape_candidate,r) for _,r in detail_candidates[:4]]
         for fut in as_completed(futures):
             try:
                 result=fut.result()
@@ -1187,56 +1183,7 @@ def cote():
     # une cote lorsqu'il n'y a pas assez de comparables qualifiés.
     experimental_brand=None
     if len(values)<3:
-        brand_queries=[
-            f'"{brand}" {year} {market_term} occasion',
-            f'"{brand}" {year} {market_term} prix occasion',
-            f'site:leboncoin.fr "{brand}" {year} {market_term}',
-            f'site:camping-car.com "{brand}" {year}',
-            f'site:netcampers.fr "{brand}" {year} {market_term}',
-            f'site:annonces-caravaning.com "{brand}" {year} {market_term}'
-        ]
-        brand_results=[]
-        def brand_search(q):
-            try:
-                resp=requests.post(
-                    "https://google.serper.dev/search",
-                    headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},
-                    json={"q":q,"gl":"fr","hl":"fr","num":10},
-                    timeout=8
-                )
-                resp.raise_for_status()
-                return q, resp.json().get("organic",[])
-            except requests.RequestException:
-                return q, []
-        # Ce filet de sécurité ne doit jamais ajouter 6 appels Serper séquentiels
-        # après la recherche principale.
-        with ThreadPoolExecutor(max_workers=min(6,len(brand_queries))) as pool:
-            futures=[pool.submit(brand_search,q) for q in brand_queries]
-            for fut in as_completed(futures):
-                q,items=fut.result()
-                for item in items:
-                    item["source"]=q
-                    brand_results.append(item)
-        brand_unique={x.get("link"):x for x in brand_results if x.get("link")}
-        experimental_brand=experimental_brand_value(list(brand_unique.values()),brand,year,category,requested_gamme=dica_gamme,requested_model=model)
-        if category!="poids_lourd" and experimental_brand and len(dica)==1:
-            resale=round(dica[0]["revente_corrigee"]*experimental_brand["coefficient"])
-            masters=max(0,resale-MASTERS_FRAIS)
-            return jsonify({
-                "status":"experimental",
-                "category":category,"ptac":ptac,
-                "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),
-                "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],
-                "dica":dica,"dica_ambiguous":False,"dica_near":[],
-                "market":None,"market_low":None,"market_high":None,
-                "confidence":"Estimative","experimental_brand":experimental_brand,
-                "experimental_resale":resale,"experimental_professional_value":masters,
-                "trade":masters,"masters_frais":MASTERS_FRAIS,
-                "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback,"brand_comparables":experimental_brand["comparables"]},
-                "message":"Marché insuffisant pour établir une cote modèle. Valeur estimative calculée à partir d'un coefficient marché observé pour la marque, appliqué au prix supposé de revente DICA corrigé. Les 10 000 € Masters sont déduits du prix supposé de revente."
-            })
         experimental_professional_value = dica[0]["reprise_corrigee"] if len(dica)==1 else None
-        experimental_market_gap = None
         return jsonify({
             "status":"insufficient","category":category,"ptac":ptac,
             "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),
@@ -1244,10 +1191,10 @@ def cote():
             "dica_ambiguous":len(dica)>1,
             "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if (not dica and category!="poids_lourd") else [],
             "experimental_recalage_factor":DICA_RECALAGE_FACTOR,
-            "experimental_market_gap":experimental_market_gap,
+            "experimental_market_gap":None,
             "experimental_professional_value":experimental_professional_value,
             "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback},
-            "message":"Cote marché non calculée : moins de 3 comparables qualifiés avec kilométrage ont été trouvés. La valeur professionnelle expérimentale reste affichée sur la base de la reprise DICA corrigée lorsqu'une référence DICA exacte est disponible."
+            "message":"Marché insuffisant : le moteur n'a pas encore trouvé 3 comparables qualifiés. Aucune recherche secondaire n'est lancée."
         })
     med=statistics.median(values)
     filtered_values=list(values)
