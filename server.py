@@ -760,14 +760,19 @@ def cote():
                 "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback,"brand_comparables":experimental_brand["comparables"]},
                 "message":"Marché insuffisant pour établir une cote modèle. Valeur estimative calculée à partir d'un coefficient marché observé pour la marque, appliqué au prix supposé de revente DICA corrigé. Les 8 000 € Masters sont déduits du prix supposé de revente."
             })
+        experimental_professional_value = dica[0]["reprise_corrigee"] if len(dica)==1 else None
+        experimental_market_gap = None
         return jsonify({
             "status":"insufficient","category":category,"ptac":ptac,
             "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),
             "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],"dica":dica,
             "dica_ambiguous":len(dica)>1,
             "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if (not dica and category!="poids_lourd") else [],
+            "experimental_recalage_factor":DICA_RECALAGE_FACTOR,
+            "experimental_market_gap":experimental_market_gap,
+            "experimental_professional_value":experimental_professional_value,
             "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback},
-            "message":"Cote marché non calculée : moins de 3 comparables qualifiés avec kilométrage ont été trouvés. Les annonces sans kilométrage restent affichées à titre de contexte uniquement."
+            "message":"Cote marché non calculée : moins de 3 comparables qualifiés avec kilométrage ont été trouvés. La valeur professionnelle expérimentale reste affichée sur la base de la reprise DICA corrigée lorsqu'une référence DICA exacte est disponible."
         })
     med=statistics.median(values)
     filtered_values=list(values)
