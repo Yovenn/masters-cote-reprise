@@ -1,0 +1,402 @@
+[
+  [
+    "KNAUS",
+    "64",
+    "I",
+    "Fiat Ducato 2,2l 140 ch/Al-Ko",
+    7.2,
+    103990,
+    48910,
+    114
+  ],
+  [
+    "KNAUS",
+    "86",
+    "I",
+    "Fiat Ducato 2,2l 140 ch/Al-Ko",
+    7.2,
+    104890,
+    49330,
+    114
+  ],
+  [
+    "KNAUS",
+    "I 64",
+    "I",
+    "Fiat Ducato 2,2l 140 ch",
+    5,
+    91100,
+    42840,
+    114
+  ],
+  [
+    "KNAUS",
+    "I 71",
+    "I",
+    "Fiat Ducato 2,2l 140 ch",
+    5,
+    91890,
+    43220,
+    114
+  ],
+  [
+    "KNAUS",
+    "I 86",
+    "I",
+    "Fiat Ducato 2,2l 140 ch",
+    5,
+    91890,
+    43220,
+    114
+  ],
+  [
+    "KNAUS",
+    "I 90",
+    "I",
+    "Fiat Ducato 2,2l 140 ch",
+    5,
+    91890,
+    43220,
+    114
+  ],
+  [
+    "KNAUS",
+    "P 64",
+    "P",
+    "Fiat Ducato 2,2l 140 ch",
+    7.5,
+    80100,
+    37670,
+    114
+  ],
+  [
+    "KNAUS",
+    "P 71",
+    "P",
+    "Fiat Ducato 2,2l 140 ch",
+    7.5,
+    81190,
+    38180,
+    114
+  ],
+  [
+    "KNAUS",
+    "P 86",
+    "P",
+    "Fiat Ducato 2,2l 140 ch",
+    7.5,
+    81190,
+    38180,
+    114
+  ],
+  [
+    "KNAUS",
+    "P 90",
+    "P",
+    "Fiat Ducato 2,2l 140 ch",
+    7.5,
+    81190,
+    38180,
+    114
+  ],
+  [
+    "MORELO",
+    "100 GB",
+    "I",
+    "Mercedes Actros 10,7 l 400 ch",
+    18,
+    532850,
+    250620,
+    114
+  ],
+  [
+    "MORELO",
+    "100 GB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    489500,
+    230230,
+    114
+  ],
+  [
+    "MORELO",
+    "100 GB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12.8,
+    477400,
+    224540,
+    114
+  ],
+  [
+    "MORELO",
+    "100 GO",
+    "I",
+    "Mercedes Actros 10,7 l 400 ch",
+    18,
+    568150,
+    267220,
+    114
+  ],
+  [
+    "MORELO",
+    "100 GO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    525800,
+    247300,
+    114
+  ],
+  [
+    "MORELO",
+    "110 GSB",
+    "I",
+    "Mercedes Actros 10,7 l 400 ch",
+    18,
+    544950,
+    256310,
+    114
+  ],
+  [
+    "MORELO",
+    "110 GSB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    499550,
+    234960,
+    114
+  ],
+  [
+    "MORELO",
+    "110 GSO",
+    "I",
+    "Mercedes Actros 10,7 l 400 ch",
+    18,
+    581250,
+    273380,
+    114
+  ],
+  [
+    "MORELO",
+    "110 GSO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    535850,
+    252030,
+    114
+  ],
+  [
+    "MORELO",
+    "118 GSB",
+    "I",
+    "Mercedes Actros 10,7 l 400 ch",
+    18,
+    562100,
+    264380,
+    114
+  ],
+  [
+    "MORELO",
+    "118 GSB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    518700,
+    243960,
+    114
+  ],
+  [
+    "MORELO",
+    "118 GSO",
+    "I",
+    "Mercedes Actros 10,7 l 400 ch",
+    18,
+    599400,
+    281920,
+    114
+  ],
+  [
+    "MORELO",
+    "118 GSO",
+    "I",
+    "Mercedes Atego 7,7 l - 299 ch",
+    15,
+    555050,
+    261060,
+    114
+  ],
+  [
+    "MORELO",
+    "93 LB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    448150,
+    210780,
+    114
+  ],
+  [
+    "MORELO",
+    "93 LO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    483450,
+    227390,
+    114
+  ],
+  [
+    "MORELO",
+    "98 MB",
+    "I",
+    "Mercedes Actros 10,7 l 400 ch",
+    18,
+    523750,
+    246340,
+    114
+  ],
+  [
+    "MORELO",
+    "98 MB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    479400,
+    225480,
+    114
+  ],
+  [
+    "MORELO",
+    "98 MB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    453200,
+    213160,
+    114
+  ],
+  [
+    "MORELO",
+    "98 MO",
+    "I",
+    "Mercedes Actros 10,7 l 400 ch",
+    18,
+    559050,
+    262940,
+    114
+  ],
+  [
+    "MORELO",
+    "98 MO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    490500,
+    230700,
+    114
+  ],
+  [
+    "MORELO",
+    "98 MO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    515700,
+    242550,
+    114
+  ],
+  [
+    "MORELO",
+    "100 GB",
+    "I",
+    "Mercedes Actros 12,8 l 530 ch",
+    18,
+    705800,
+    331970,
+    114
+  ],
+  [
+    "MORELO",
+    "100 GO",
+    "I",
+    "Mercedes Actros 12,8 l 530 ch",
+    18,
+    755200,
+    355200,
+    114
+  ],
+  [
+    "MORELO",
+    "110 GSB",
+    "I",
+    "Mercedes Actros 12,8 l 530 ch",
+    18,
+    711850,
+    334810,
+    114
+  ],
+  [
+    "MORELO",
+    "110 GSO",
+    "I",
+    "Mercedes Actros 12,8 l 530 ch",
+    18,
+    761250,
+    358050,
+    114
+  ],
+  [
+    "MORELO",
+    "118 GSB",
+    "I",
+    "Mercedes Actros 12,8 l 530 ch",
+    18,
+    721900,
+    339540,
+    114
+  ],
+  [
+    "MORELO",
+    "118 GSO",
+    "I",
+    "Mercedes Actros 12,8 l 530 ch",
+    18,
+    771350,
+    362800,
+    114
+  ],
+  [
+    "MORELO",
+    "119 GSB",
+    "I",
+    "Mercedes Actros 12,8 l 530 ch",
+    18,
+    744100,
+    349980,
+    114
+  ],
+  [
+    "MORELO",
+    "119 GSO",
+    "I",
+    "Mercedes Actros 12,8 l 530 ch",
+    18,
+    793500,
+    373220,
+    114
+  ],
+  [
+    "MORELO",
+    "78 L",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    5.6,
+    186450,
+    87690,
+    114
+  ]
+]
