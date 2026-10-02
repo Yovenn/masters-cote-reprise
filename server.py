@@ -214,6 +214,34 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
 
     candidates=[]
 
+    # 0) Priorité au bloc principal de l'annonce (h1).
+    # Les pages catalogue peuvent contenir plusieurs véhicules et plusieurs
+    # prix. Sur une vraie page détail, le premier prix situé après le h1 qui
+    # contient le modèle/année demandés correspond généralement au véhicule.
+    h1_matches=re.findall(r"<h1[^>]*>(.*?)</h1>",html,re.I|re.S)
+    for raw_h1 in h1_matches:
+        h1_text=re.sub(r"\\s+"," ",unescape(re.sub(r"<[^>]+>"," ",raw_h1))).strip()
+        h1_low=h1_text.lower()
+        h1_years=extract_years(h1_text)
+        h1_model_ok=bool(model_norm and model_norm in norm(h1_text))
+        h1_year_ok=bool(target_year is None or target_year in h1_years)
+        if not (h1_model_ok and h1_year_ok):
+            continue
+        # Cherche la zone HTML qui suit ce h1, sans parcourir toute la page.
+        h1_pos=html.lower().find(raw_h1.lower())
+        if h1_pos < 0:
+            continue
+        after=html[h1_pos:h1_pos+18000]
+        visible=re.sub(r"\\s+"," ",unescape(re.sub(r"<[^>]+>"," ",after))).strip()
+        prices_after=extract_prices(visible[:6000])
+        kms_after=extract_kms(visible[:6000])
+        if prices_after:
+            km0=kms_after[0] if kms_after else None
+            add_score=260
+            if target_km is not None and km0 is not None:
+                add_score += max(0,100-abs(km0-target_km)/300)
+            candidates.append((add_score,prices_after[0],km0,target_year,h1_text))
+
     def add_candidate(price, km=None, year=None, name="", source_score=0):
         try:
             price=int(float(str(price).replace(",",".")))
