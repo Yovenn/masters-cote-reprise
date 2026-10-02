@@ -975,22 +975,47 @@ def cote():
         key=(norm(r.get("title","")),parse_price_km(r,year,km)[0],parse_price_km(r,year,km)[1])
         if key[0]: dedup[key]=r
 
-    # IMPORTANT : les snippets de résultats peuvent provenir d'une page
-    # catalogue et mélanger le prix du véhicule recherché avec le prix d'un
-    # autre véhicule (souvent un modèle 2026). Avant de calculer la cote, on
-    # ouvre donc les pages détail des candidats sérieux et on donne priorité
-    # au prix réellement affiché sur cette annonce.
+    # IMPORTANT : un résultat Google/Serper peut être une page catalogue
+    # dont le snippet mélange plusieurs véhicules. On ouvre maintenant beaucoup
+    # plus largement les candidats et, surtout, les résultats qui contiennent
+    # l'année + le kilométrage cible. Le prix retenu doit venir de la page de
+    # l'annonce lorsque celle-ci est accessible, jamais d'un autre véhicule
+    # présent sur la même page.
     detail_candidates=[]
     for r in dedup.values():
         prelim=score_result(r,brand,model,year,km,hp,transmission,dica_gamme,category)
-        text_pre=f"{r.get('title','')} {r.get('snippet','')}".lower()
+        text_pre=f"{r.get('title','')} {r.get('snippet','')}"
+        text_pre_low=text_pre.lower()
         years_pre=extract_years(text_pre)
-        if prelim>=55 and (not years_pre or year in years_pre) and not is_aggregation(r):
-            detail_candidates.append((prelim,r))
+        kms_pre=extract_kms(text_pre)
+        exact_km=(km in kms_pre)
+        exact_year=(year in years_pre)
+        # Les pages d'agrégation sont également explorées : certaines
+        # contiennent une annonce exacte dans leur liste et le moteur de
+        # recherche peut ne pas fournir directement sa page détail.
+        if prelim>=45 and (not years_pre or exact_year) and (exact_km or exact_year or not is_aggregation(r)):
+            bonus=(90 if exact_km else 0)+(35 if exact_year else 0)
+            detail_candidates.append((prelim+bonus,r))
+
     detail_candidates.sort(key=lambda x:x[0],reverse=True)
-    for _,r in detail_candidates[:30]:
+    # 80 pages maximum : suffisamment large pour ne plus rater une annonce
+    # pertinente cachée derrière plusieurs résultats de recherche, tout en
+    # gardant un temps de réponse raisonnable.
+    for _,r in detail_candidates[:80]:
         detail=fetch_detail_price_km(r,year,model,km)
         if detail and detail.get("price"):
+            # Vérification finale : la page détail doit réellement correspondre
+            # à l'année et au modèle demandés. Si elle fournit un kilométrage,
+            # il devient prioritaire sur celui du snippet.
+            detail_year=detail.get("year")
+            detail_title=str(detail.get("title","") or "")
+            if detail_year is not None and detail_year!=year:
+                continue
+            if model and norm(model) not in norm(detail_title):
+                # Certains titres utilisent « MC 4 262 » au lieu de « MC4 262 ».
+                # On accepte néanmoins la correspondance compacte du modèle.
+                if norm(re.sub(r"(?<=[A-Za-z])(?=\\d)|(?<=\\d)(?=[A-Za-z])"," ",model)) not in norm(detail_title):
+                    continue
             r["_detail"]=detail
 
     rows=[]; context=[]
