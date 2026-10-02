@@ -88,6 +88,8 @@ for _path in sorted(glob.glob(os.path.join(BASE_DIR, "data", "dica32_poids_lourd
         continue
     if _year == 2017 and _name != "dica32_poids_lourds_2017_clean.json":
         continue
+    if _year == 2018 and _name != "dica32_poids_lourds_2018_clean.json":
+        continue
     try:
         with open(_path, encoding="utf-8") as f:
             _rows = json.load(f)
