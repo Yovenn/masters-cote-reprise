@@ -347,7 +347,11 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
                 continue
             name=str(obj.get("name","") or "")
             desc=str(obj.get("description","") or "")
-            combined=f"{name} {desc}"
+            try:
+                structured_text=json.dumps(obj,ensure_ascii=False)
+            except Exception:
+                structured_text=""
+            combined=f"{name} {desc} {structured_text}"
             offers=obj.get("offers")
             if isinstance(offers,dict):
                 offers=[offers]
@@ -357,9 +361,11 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
                         continue
                     kms=extract_kms(combined)
                     yrs=extract_years(combined)
+                    if not kms:
+                        continue
                     add_candidate(
                         offer.get("price"),
-                        kms[0] if kms else None,
+                        kms[0],
                         yrs[0] if yrs else None,
                         combined,
                         "jsonld",
@@ -415,15 +421,9 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
         for p in prices:
             add_candidate(p,nearest_km,nearest_year,txt,"dom-card",180+identity)
 
-    # 3) Meta : seulement quand le titre de la page est lui-même une annonce.
-    if title_model_ok and title_year_ok:
-        for node in tree.css("meta"):
-            key=(attr(node,"property") or attr(node,"name")).lower()
-            if key not in ("product:price:amount","og:price:amount","price"):
-                continue
-            val=attr(node,"content")
-            if val:
-                add_candidate(val,target_km,target_year,page_title,"meta",190)
+    # 3) Pas de meta prix seul : sans kilométrage dans le même bloc,
+    # le moteur risquerait d'associer le prix d'une annonce au kilométrage
+    # fourni par la recherche. Cette association est interdite.
 
     # 4) Sur une vraie page détail sans carte exploitable, on accepte le JSON-LD
     # ou les meta uniquement. Pas de fenêtre de texte globale : c'est précisément
