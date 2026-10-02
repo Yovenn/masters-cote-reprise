@@ -216,7 +216,7 @@ def fetch_detail_browser_html(url):
         except Exception:
             return None, None
 
-def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None):
+def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None, target_gamme=None):
     """
     Scraping léger et strict d'une page d'annonce.
 
@@ -266,6 +266,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
     title_node=tree.css_first("title")
     page_title=node_text(title_node) if title_node else ""
     model_norm=norm(target_model or "")
+    gamme_norm=norm(target_gamme or "")
     title_norm=norm(page_title)
     page_years=extract_years(page_title)
     title_model_ok=bool(model_norm and model_norm in title_norm)
@@ -286,7 +287,11 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
         nt=norm(text)
         if model_norm and model_norm not in nt:
             return -1000
+        if gamme_norm and gamme_norm not in nt:
+            return -1000
         score=100.0 if model_norm else 0.0
+        if gamme_norm:
+            score+=140
         years=extract_years(text)
         if target_year is not None:
             if target_year in years:
@@ -387,6 +392,13 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
         if key in seen:
             continue
         seen.add(key)
+        # Si un même conteneur contient plusieurs occurrences du modèle,
+        # il s’agit probablement d’un parent de plusieurs annonces : on ne
+        # lui associe jamais un prix/km.
+        if model_norm and len(re.findall(re.escape(model_norm), norm(txt)))>1:
+            continue
+        if gamme_norm and len(re.findall(re.escape(gamme_norm), norm(txt)))>1:
+            continue
         prices=extract_prices(txt)
         kms=extract_kms(txt)
         years=extract_years(txt)
@@ -1146,7 +1158,7 @@ def cote():
     # Scraping des pages détail en parallèle : les requêtes HTTP restent rapides
     # et on évite de bloquer 10 fois 6 secondes l'une après l'autre.
     def scrape_candidate(r):
-        detail=fetch_detail_price_km(r,year,model,km)
+        detail=fetch_detail_price_km(r,year,model,km,dica_gamme)
         if not detail or not detail.get("price"):
             return None
         detail_year=detail.get("year")
