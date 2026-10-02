@@ -230,7 +230,6 @@ async function dicaBrandChanged(){
   });
   models.sort(function(a,b){return a.label.localeCompare(b.label,'fr')});
   fillSelect(document.getElementById('model'),models,'Choisir une référence…');
-  document.getElementById('hp').value='';
   window.__catalogSelection=null;
   return records;
 }
