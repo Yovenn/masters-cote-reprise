@@ -204,7 +204,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
     page_title=""
     mt=re.search(r"<title[^>]*>(.*?)</title>",html,re.I|re.S)
     if mt:
-        page_title=re.sub(r"\\s+"," ",unescape(re.sub(r"<[^>]+>"," ",mt.group(1)))).strip()
+        page_title=re.sub(r"\s+"," ",unescape(re.sub(r"<[^>]+>"," ",mt.group(1)))).strip()
 
     model_norm=norm(target_model or "")
     title_low=page_title.lower()
@@ -285,7 +285,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
     # de reprendre le premier prix d'une page catalogue.
     if title_model_ok and title_year_ok:
         text=unescape(re.sub(r"<[^>]+>"," ",html))
-        text=re.sub(r"\\s+"," ",text)
+        text=re.sub(r"\s+"," ",text)
         anchor=norm(target_model or "")
         idx=norm(text).find(anchor) if anchor else -1
         if idx>=0:
@@ -295,7 +295,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
             low=text.lower()
             m=re.search(re.escape(str(target_model)),low,re.I)
             if not m and target_model:
-                compact=re.sub(r"\\s+","\\\\s*",re.escape(str(target_model)))
+                compact=re.sub(r"\s+","\s*",re.escape(str(target_model)))
                 m=re.search(compact,low,re.I)
             window=low[max(0,(m.start() if m else 0)-1200):min(len(low),(m.end() if m else 1200)+1800)]
             prices=extract_prices(window)
