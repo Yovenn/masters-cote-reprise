@@ -2958,5 +2958,235 @@
     186450,
     87690,
     114
+  ],
+  [
+    "CONCORDE",
+    "95 GB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    410300,
+    244120,
+    111
+  ],
+  [
+    "CONCORDE",
+    "95 GB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    396200,
+    235730,
+    111
+  ],
+  [
+    "CONCORDE",
+    "99 GSB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    413350,
+    245940,
+    111
+  ],
+  [
+    "CONCORDE",
+    "99 GSB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    399250,
+    237550,
+    111
+  ],
+  [
+    "CONCORDE",
+    "790 MI",
+    "I",
+    "Iveco Daily 2,3 l 156 ch",
+    5.21,
+    99550,
+    93850,
+    112
+  ],
+  [
+    "CONCORDE",
+    "790 MI",
+    "I",
+    "Iveco Daily 2,3 l 156 ch",
+    12,
+    186500,
+    87720,
+    112
+  ],
+  [
+    "CONCORDE",
+    "791 L",
+    "I",
+    "Iveco Daily 2,3 l 156 ch",
+    5.2,
+    186500,
+    87720,
+    112
+  ],
+  [
+    "CONCORDE",
+    "791 L",
+    "I",
+    "Iveco Daily 2,3 l 156 ch",
+    6.5,
+    186500,
+    87720,
+    112
+  ],
+  [
+    "CONCORDE",
+    "841 L",
+    "I",
+    "Iveco Daily 2,3 l 156 ch",
+    5.2,
+    204950,
+    96390,
+    112
+  ],
+  [
+    "CONCORDE",
+    "841 L",
+    "I",
+    "Iveco Daily 2,3 l 156 ch",
+    12,
+    191500,
+    90070,
+    112
+  ],
+  [
+    "CONCORDE",
+    "841 M",
+    "I",
+    "Iveco Daily 2,3 l 156 ch",
+    5.2,
+    204950,
+    96390,
+    112
+  ],
+  [
+    "CONCORDE",
+    "841 M",
+    "I",
+    "Iveco Daily 2,3 l 156 ch",
+    12,
+    191500,
+    90070,
+    112
+  ],
+  [
+    "CARTHAGO",
+    "I 53",
+    "I",
+    "Iveco Daily 3,0 l 156 ch",
+    5.61,
+    95720,
+    90070,
+    112
+  ],
+  [
+    "CARTHAGO",
+    "I 53 L",
+    "I",
+    "Fiat Ducato 2,2 l 180 ch/Al-Ko",
+    5,
+    189300,
+    87120,
+    112
+  ],
+  [
+    "FRANKIA",
+    "8400 GD",
+    "I",
+    "Mercedes Sprinter 2,0 l 190 ch",
+    5.5,
+    214860,
+    101060,
+    113
+  ],
+  [
+    "FRANKIA",
+    "8400 GD Blanc",
+    "I",
+    "Mercedes Sprinter 2,0 l 190 ch",
+    5.5,
+    208810,
+    98210,
+    113
+  ],
+  [
+    "FRANKIA",
+    "8400 Plus",
+    "I",
+    "Mercedes Sprinter 2,0 l 190 ch",
+    5.5,
+    218490,
+    102760,
+    113
+  ],
+  [
+    "FRANKIA",
+    "8400 Plus Blanc",
+    "I",
+    "Mercedes Sprinter 2,0 l 190 ch",
+    5.5,
+    212440,
+    99920,
+    113
+  ],
+  [
+    "FRANKIA",
+    "8400 QD",
+    "I",
+    "Mercedes Sprinter 2,0 l 190 ch",
+    5.5,
+    214860,
+    101060,
+    113
+  ],
+  [
+    "FRANKIA",
+    "8400 QD Blanc",
+    "I",
+    "Mercedes Sprinter 2,0 l 190 ch",
+    5.5,
+    208810,
+    98210,
+    113
+  ],
+  [
+    "FRANKIA",
+    "I 7900 GD",
+    "I",
+    "Mercedes Sprinter 2,0 l 190 ch",
+    5.5,
+    209170,
+    98380,
+    113
+  ],
+  [
+    "FRANKIA",
+    "I 7900 GD Blanc",
+    "I",
+    "Mercedes Sprinter 2,0 l 190 ch",
+    5.5,
+    203120,
+    95530,
+    113
+  ],
+  [
+    "DETHLEFFS",
+    "I 890 GD-B",
+    "I",
+    "Fiat Ducato 2,2 l 180 ch/Al-Ko",
+    5.51,
+    90800,
+    89740,
+    113
   ]
 ]
