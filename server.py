@@ -1,4 +1,10 @@
 import os, re, statistics, json, requests, unicodedata
+try:
+    from playwright.sync_api import sync_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except Exception:
+    sync_playwright = None
+    PLAYWRIGHT_AVAILABLE = False
 from html import unescape
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
@@ -178,6 +184,22 @@ def extract_prices(text):
                 if 10000<=v<=150000 and v not in out: out.append(v)
             except ValueError: pass
     return out
+def fetch_detail_browser_html(url):
+    """Récupère le HTML rendu par Chromium pour les pages chargées en JavaScript."""
+    if not PLAYWRIGHT_AVAILABLE:
+        return None, None
+    try:
+        with sync_playwright() as p:
+            browser=p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+            page=browser.new_page(user_agent="Mozilla/5.0 (compatible; MastersCoteReprise/1.2)")
+            page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            try: page.wait_for_load_state("networkidle", timeout=7000)
+            except Exception: pass
+            html=page.content(); final_url=page.url; browser.close()
+            return html, final_url
+    except Exception:
+        return None, None
+
 def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None):
     """
     Scraping strict d'une page d'annonce.
@@ -204,6 +226,14 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
             return None
         html=resp.text
     except requests.RequestException:
+        resp=None
+        html=None
+
+    # Fallback navigateur pour les pages dont le contenu est généré en JavaScript.
+    browser_url=getattr(resp, "url", url) if resp is not None else url
+    if not html and PLAYWRIGHT_AVAILABLE:
+        html, browser_url = fetch_detail_browser_html(url)
+    if not html:
         return None
 
     page_title=""
@@ -374,6 +404,26 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
                 nearest_year=min(years,key=lambda y:abs(y-(target_year or y))) if years else None
                 add_candidate(p,nearest_km,nearest_year,page_title,window,"model-window",80)
 
+    # Second passage avec Chromium si requests n'a pas trouvé de prix fiable.
+    if not candidates and PLAYWRIGHT_AVAILABLE:
+        browser_html, browser_url = fetch_detail_browser_html(url)
+        if browser_html and browser_html != html:
+            visible=unescape(re.sub(r"<[^>]+>", " ", browser_html))
+            visible=re.sub(r"\s+", " ", visible)
+            low=visible.lower()
+            if target_model:
+                mm=re.search(re.escape(str(target_model)), low, re.I)
+                if not mm:
+                    compact=re.sub(r"\s+", r"\\s*", re.escape(str(target_model)))
+                    mm=re.search(compact, low, re.I)
+                if mm:
+                    window=low[max(0,mm.start()-2000):min(len(low),mm.end()+4000)]
+                    prices=extract_prices(window); kms=extract_kms(window); years=extract_years(window)
+                    for p in prices:
+                        nearest_km=min(kms,key=lambda k:abs(k-(target_km or k))) if kms else None
+                        nearest_year=min(years,key=lambda y:abs(y-(target_year or y))) if years else None
+                        add_candidate(p, nearest_km, nearest_year, page_title, window, "playwright-text", 120)
+
     if not candidates:
         return None
 
@@ -409,7 +459,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
         "source":"detail",
         "price_source":chosen["source"],
         "price_evidence":chosen["name"][:500],
-        "url":resp.url
+        "url":browser_url
     }
 
 def parse_price_km(r, target_year=None, target_km=None):
