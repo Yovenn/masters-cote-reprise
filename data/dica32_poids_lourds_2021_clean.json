@@ -1,0 +1,1322 @@
+[
+  [
+    "KNAUS",
+    "900 LEG",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    86280,
+    34310,
+    117
+  ],
+  [
+    "KNAUS",
+    "900 LEG",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    127190,
+    50580,
+    117
+  ],
+  [
+    "KNAUS",
+    "900 LX",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    128170,
+    50970,
+    117
+  ],
+  [
+    "BÜRSTNER",
+    "I 910 G",
+    "I",
+    "Mercedes Sprinter 2,2 l 143 ch",
+    5.5,
+    119190,
+    47390,
+    117
+  ],
+  [
+    "BÜRSTNER",
+    "I 920 G",
+    "I",
+    "Mercedes Sprinter 2,2 l 143 ch",
+    5.5,
+    119190,
+    47390,
+    117
+  ],
+  [
+    "LAIKA",
+    "8002",
+    "I",
+    "Iveco Daily 2,3 l 156 ch",
+    5.6,
+    133610,
+    53130,
+    117
+  ],
+  [
+    "LAIKA",
+    "8009",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    164820,
+    65540,
+    117
+  ],
+  [
+    "LAIKA",
+    "8012",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    163800,
+    65140,
+    117
+  ],
+  [
+    "LE VOYAGEUR",
+    "LV8.5 GJF",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    118900,
+    47280,
+    118
+  ],
+  [
+    "CONCORDE",
+    "93 LSB",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    236350,
+    93990,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "LV8.5 GJL",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    118900,
+    47280,
+    118
+  ],
+  [
+    "CONCORDE",
+    "93 MB",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    236350,
+    93990,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "10.1 SQD CAR",
+    "I",
+    "Mercedes Atego 7,7 l 300 ch",
+    12,
+    326000,
+    129640,
+    118
+  ],
+  [
+    "CONCORDE",
+    "101 GSO",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    355350,
+    141310,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "10.1 SQD Garage CAR",
+    "I",
+    "Mercedes Atego 7,7 l 300 ch",
+    12,
+    328000,
+    130430,
+    118
+  ],
+  [
+    "CONCORDE",
+    "101 GSO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    373500,
+    148530,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "10.4 QD CAR",
+    "I",
+    "Mercedes Atego 7,7 l 300 ch",
+    12,
+    336000,
+    133610,
+    118
+  ],
+  [
+    "CONCORDE",
+    "103 GSB",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    333200,
+    132500,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "10.8 QD CAR",
+    "I",
+    "Mercedes Atego 7,7 l 300 ch",
+    12,
+    347000,
+    137990,
+    118
+  ],
+  [
+    "CONCORDE",
+    "103 GSB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    351350,
+    139720,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "8.3 BD",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    215000,
+    85500,
+    118
+  ],
+  [
+    "CONCORDE",
+    "105 GSO",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    363450,
+    144530,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "8.3 GD",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    215000,
+    85500,
+    118
+  ],
+  [
+    "CONCORDE",
+    "105 GSO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    381600,
+    151750,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "8.7 BD",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    217000,
+    86290,
+    118
+  ],
+  [
+    "CONCORDE",
+    "110 GSB",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    340250,
+    135300,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "8.7 GD",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    217000,
+    86290,
+    118
+  ],
+  [
+    "CONCORDE",
+    "110 GSB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    357400,
+    142130,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "8.7 QD",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    217000,
+    86290,
+    118
+  ],
+  [
+    "CONCORDE",
+    "112 GSO",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    369500,
+    146940,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "9.3 GD",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    226000,
+    89870,
+    118
+  ],
+  [
+    "CONCORDE",
+    "112 GSO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    387650,
+    154160,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "9.3 GD CAR",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    243000,
+    96630,
+    118
+  ],
+  [
+    "CONCORDE",
+    "85 L",
+    "I",
+    "Iveco Eurocargo 6,7 l 251 ch",
+    10,
+    277200,
+    110230,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "9.3 QD",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    226000,
+    89870,
+    118
+  ],
+  [
+    "CONCORDE",
+    "85 L",
+    "I",
+    "Mercedes Atego 7,7 l 238 ch",
+    10.5,
+    298400,
+    118660,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "9.3 QD CAR",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    243000,
+    96630,
+    118
+  ],
+  [
+    "CONCORDE",
+    "88 LB",
+    "I",
+    "Iveco Eurocargo 6,7 l 251 ch",
+    10,
+    281250,
+    111840,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "9.3 QD QUAD",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.5,
+    238000,
+    94640,
+    118
+  ],
+  [
+    "CONCORDE",
+    "88 LB",
+    "I",
+    "Mercedes Atego 7,7 l 238 ch",
+    10.5,
+    302400,
+    120250,
+    118
+  ],
+  [
+    "CONCORDE",
+    "90 G",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    319050,
+    126870,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "I8.0 CF",
+    "I",
+    "Iveco Daily 2,3 l 160 ch",
+    5.6,
+    144900,
+    57620,
+    118
+  ],
+  [
+    "CONCORDE",
+    "90 G",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    337200,
+    134090,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "I8.0 GJF",
+    "I",
+    "Iveco Daily 2,3 l 160 ch",
+    5.6,
+    144900,
+    57620,
+    118
+  ],
+  [
+    "CONCORDE",
+    "90 LO",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    328150,
+    130490,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "I8.5 CF",
+    "I",
+    "Iveco Daily 2,3 l 160 ch",
+    5.6,
+    149900,
+    59610,
+    118
+  ],
+  [
+    "CONCORDE",
+    "90 LO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    346300,
+    137710,
+    118
+  ],
+  [
+    "LE VOYAGEUR",
+    "I8.5 GJF",
+    "I",
+    "Iveco Daily 2,3 l 160 ch",
+    5.6,
+    149900,
+    59610,
+    118
+  ],
+  [
+    "CONCORDE",
+    "90 LS",
+    "I",
+    "Iveco Eurocargo 6,7 l 251 ch",
+    10,
+    283250,
+    112640,
+    118
+  ],
+  [
+    "CONCORDE",
+    "90 LS",
+    "I",
+    "Mercedes Atego 7,7 l 238 ch",
+    10.5,
+    304450,
+    121070,
+    118
+  ],
+  [
+    "CONCORDE",
+    "90 M",
+    "I",
+    "Iveco Eurocargo 6,7 l 251 ch",
+    10,
+    283250,
+    112640,
+    118
+  ],
+  [
+    "CONCORDE",
+    "90 M",
+    "I",
+    "Mercedes Atego 7,7 l 238 ch",
+    10.5,
+    304450,
+    121070,
+    118
+  ],
+  [
+    "MORELO",
+    "88 L",
+    "I",
+    "Iveco Daily 3,0 l 210 ch",
+    7.5,
+    320050,
+    127270,
+    118
+  ],
+  [
+    "MORELO",
+    "90 L",
+    "I",
+    "Iveco Daily 3,0 l 210 ch",
+    7.5,
+    321100,
+    127690,
+    118
+  ],
+  [
+    "CONCORDE",
+    "93 LSB",
+    "I",
+    "Iveco Eurocargo 6,7 l 251 ch",
+    10,
+    284250,
+    113040,
+    118
+  ],
+  [
+    "MORELO",
+    "92 LS",
+    "I",
+    "Iveco Daily 3,0 l 210 ch",
+    7.5,
+    324100,
+    128880,
+    118
+  ],
+  [
+    "CONCORDE",
+    "93 LSB",
+    "I",
+    "Mercedes Atego 7,7 l 238 ch",
+    10.5,
+    305450,
+    121470,
+    118
+  ],
+  [
+    "MORELO",
+    "92 M",
+    "I",
+    "Iveco Daily 3,0 l 210 ch",
+    7.5,
+    324100,
+    128880,
+    118
+  ],
+  [
+    "CONCORDE",
+    "93 MB",
+    "I",
+    "Iveco Eurocargo 6,7 l 251 ch",
+    10,
+    284250,
+    113040,
+    118
+  ],
+  [
+    "CONCORDE",
+    "93 MB",
+    "I",
+    "Mercedes Atego 7,7 l 238 ch",
+    10.5,
+    305450,
+    121470,
+    118
+  ],
+  [
+    "CONCORDE",
+    "95 GB",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    322100,
+    128090,
+    118
+  ],
+  [
+    "MORELO",
+    "100 GB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    421400,
+    167580,
+    118
+  ],
+  [
+    "MORELO",
+    "100 GB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    434500,
+    172790,
+    118
+  ],
+  [
+    "CONCORDE",
+    "95 GB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    340250,
+    135300,
+    118
+  ],
+  [
+    "MORELO",
+    "100 GO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    464750,
+    184820,
+    118
+  ],
+  [
+    "CONCORDE",
+    "95 LSO",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    333200,
+    132500,
+    118
+  ],
+  [
+    "MORELO",
+    "110 GSB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    444600,
+    176800,
+    118
+  ],
+  [
+    "CONCORDE",
+    "95 LSO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    351350,
+    139720,
+    118
+  ],
+  [
+    "MORELO",
+    "110 GSO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    474850,
+    188830,
+    118
+  ],
+  [
+    "CONCORDE",
+    "95 MO",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    333200,
+    132500,
+    118
+  ],
+  [
+    "MORELO",
+    "118 GSB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    461750,
+    183620,
+    118
+  ],
+  [
+    "CONCORDE",
+    "95 MO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    351350,
+    139720,
+    118
+  ],
+  [
+    "MORELO",
+    "118 GSO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    15,
+    492000,
+    195650,
+    118
+  ],
+  [
+    "CONCORDE",
+    "97 GO",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    352350,
+    140120,
+    118
+  ],
+  [
+    "CONCORDE",
+    "90 L",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    394200,
+    156760,
+    118
+  ],
+  [
+    "CONCORDE",
+    "97 GO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    370500,
+    147330,
+    118
+  ],
+  [
+    "CONCORDE",
+    "93 LB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    397200,
+    157950,
+    118
+  ],
+  [
+    "CONCORDE",
+    "99 GSB",
+    "I",
+    "Iveco Eurocargo 6,7 l 279 ch",
+    12,
+    325100,
+    129280,
+    118
+  ],
+  [
+    "CONCORDE",
+    "93 LO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    427450,
+    169980,
+    118
+  ],
+  [
+    "CONCORDE",
+    "99 GSB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    343250,
+    136500,
+    118
+  ],
+  [
+    "CONCORDE",
+    "94 LS",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    398200,
+    158350,
+    118
+  ],
+  [
+    "CONCORDE",
+    "95 M",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    399250,
+    158770,
+    118
+  ],
+  [
+    "CONCORDE",
+    "98 MB",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    402250,
+    159960,
+    118
+  ],
+  [
+    "CONCORDE",
+    "98 MO",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    432500,
+    171990,
+    118
+  ],
+  [
+    "NIESMANN+BISCHOFF",
+    "79 E",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    115320,
+    45850,
+    118
+  ],
+  [
+    "CONCORDE",
+    "99 MS",
+    "I",
+    "Mercedes Atego 7,7 l 299 ch",
+    12,
+    403250,
+    160360,
+    118
+  ],
+  [
+    "NIESMANN+BISCHOFF",
+    "79 R",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    115320,
+    45850,
+    118
+  ],
+  [
+    "NIESMANN+BISCHOFF",
+    "82 E",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    116970,
+    46510,
+    118
+  ],
+  [
+    "MORELO",
+    "74 H",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    5.6,
+    161250,
+    64120,
+    118
+  ],
+  [
+    "NIESMANN+BISCHOFF",
+    "85 E",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    118710,
+    47200,
+    118
+  ],
+  [
+    "MORELO",
+    "78 HS",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    5.6,
+    163250,
+    64920,
+    118
+  ],
+  [
+    "NIESMANN+BISCHOFF",
+    "88 B",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    117690,
+    46800,
+    118
+  ],
+  [
+    "MORELO",
+    "78 L",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    5.6,
+    163250,
+    64920,
+    118
+  ],
+  [
+    "NIESMANN+BISCHOFF",
+    "88 E",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    119710,
+    47600,
+    118
+  ],
+  [
+    "MORELO",
+    "82 LS",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    5.6,
+    165300,
+    65730,
+    118
+  ],
+  [
+    "NIESMANN+BISCHOFF",
+    "88 EK",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    119710,
+    47600,
+    118
+  ],
+  [
+    "MORELO",
+    "82 M",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    5.6,
+    165300,
+    65730,
+    118
+  ],
+  [
+    "NIESMANN+BISCHOFF",
+    "88 LF",
+    "I",
+    "Fiat Ducato 2,3 l 140 ch",
+    5,
+    119710,
+    47600,
+    118
+  ],
+  [
+    "MORELO",
+    "74 H",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    188450,
+    74940,
+    118
+  ],
+  [
+    "FLAIR",
+    "830 LE",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    184540,
+    73380,
+    118
+  ],
+  [
+    "MORELO",
+    "77 HB",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    189500,
+    75360,
+    118
+  ],
+  [
+    "FLAIR",
+    "880 BE",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    189100,
+    75200,
+    118
+  ],
+  [
+    "MORELO",
+    "79 F",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    191500,
+    76150,
+    118
+  ],
+  [
+    "FLAIR",
+    "880 LE",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    189100,
+    75200,
+    118
+  ],
+  [
+    "MORELO",
+    "79 L",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    188450,
+    74940,
+    118
+  ],
+  [
+    "FLAIR",
+    "920 BF",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    192240,
+    76450,
+    118
+  ],
+  [
+    "MORELO",
+    "82 FB",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    194500,
+    77340,
+    118
+  ],
+  [
+    "FLAIR",
+    "920 EK",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    192240,
+    76450,
+    118
+  ],
+  [
+    "MORELO",
+    "82 LB",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    191500,
+    76150,
+    118
+  ],
+  [
+    "FLAIR",
+    "920 LE",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    192240,
+    76450,
+    118
+  ],
+  [
+    "MORELO",
+    "84 M",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    192500,
+    76550,
+    118
+  ],
+  [
+    "FLAIR",
+    "920 LF",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    192240,
+    76450,
+    118
+  ],
+  [
+    "MORELO",
+    "87 MB",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    195550,
+    77760,
+    118
+  ],
+  [
+    "FLAIR",
+    "920 LW",
+    "I",
+    "Iveco Daily 3,0 l 180 ch",
+    7.2,
+    192240,
+    76450,
+    118
+  ],
+  [
+    "MORELO",
+    "79 F",
+    "I",
+    "Iveco Eurocargo 4,5 l 206 ch",
+    7.5,
+    227800,
+    90590,
+    118
+  ],
+  [
+    "MORELO",
+    "79 F",
+    "I",
+    "Iveco Eurocargo 6,7 l 251 ch",
+    10,
+    242900,
+    96590,
+    118
+  ],
+  [
+    "MORELO",
+    "79 L",
+    "I",
+    "Iveco Eurocargo 4,5 l 206 ch",
+    7.5,
+    227800,
+    90590,
+    118
+  ],
+  [
+    "NOTIN",
+    "Calgary CF",
+    "I",
+    "Mercedes Sprinter 3,0 l 190 ch",
+    5.5,
+    157800,
+    62750,
+    118
+  ],
+  [
+    "MORELO",
+    "79 L",
+    "I",
+    "Iveco Eurocargo 6,7 l 251 ch",
+    10,
+    242900,
+    96590,
+    118
+  ],
+  [
+    "NOTIN",
+    "Calgary JF",
+    "I",
+    "Mercedes Sprinter 3,0 l 190 ch",
+    5.5,
+    158800,
+    63150,
+    118
+  ],
+  [
+    "MORELO",
+    "82 FB",
+    "I",
+    "Iveco Eurocargo 4,5 l 206 ch",
+    7.5,
+    230800,
+    91780,
+    118
+  ],
+  [
+    "NOTIN",
+    "Volga 2 CF",
+    "I",
+    "Mercedes Sprinter 3,0 l 190 ch",
+    5.5,
+    206000,
+    81920,
+    118
+  ],
+  [
+    "MORELO",
+    "82 FB",
+    "I",
+    "Iveco Eurocargo 6,7 l 251 ch",
+    10,
+    245950,
+    97800,
+    118
+  ],
+  [
+    "NOTIN",
+    "Volga 2 CL",
+    "I",
+    "Mercedes Sprinter 3,0 l 190 ch",
+    5.5,
+    208500,
+    82910,
+    118
+  ],
+  [
+    "MORELO",
+    "82 LB",
+    "I",
+    "Iveco Eurocargo 4,5 l 206 ch",
+    7.5,
+    230800,
+    91780,
+    118
+  ],
+  [
+    "NOTIN",
+    "Volga 2 JF",
+    "I",
+    "Mercedes Sprinter 3,0 l 190 ch",
+    5.5,
+    207000,
+    82310,
+    118
+  ],
+  [
+    "MORELO",
+    "82 LB",
+    "I",
+    "Iveco Eurocargo 6,7 l 251 ch",
+    10,
+    245950,
+    97800,
+    118
+  ],
+  [
+    "NOTIN",
+    "Volga 2 JL",
+    "I",
+    "Mercedes Sprinter 3,0 l 190 ch",
+    5.5,
+    209500,
+    83310,
+    118
+  ],
+  [
+    "MORELO",
+    "84 M",
+    "I",
+    "Iveco Eurocargo 4,5 l 206 ch",
+    7.5,
+    232850,
+    92590,
+    118
+  ],
+  [
+    "MORELO",
+    "84 M",
+    "I",
+    "Iveco Eurocargo 6,7 l 251 ch",
+    10,
+    247950,
+    98600,
+    118
+  ],
+  [
+    "NOTIN",
+    "Notinliner 940G",
+    "I",
+    "Mercedes Sprinter 3,0 l 205 ch",
+    7.5,
+    269500,
+    107170,
+    118
+  ],
+  [
+    "RAPIDO",
+    "I 840 GD",
+    "I",
+    "Fiat Ducato 2,3 I 160 ch",
+    5,
+    145900,
+    53260,
+    119
+  ]
+]
