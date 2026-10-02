@@ -278,7 +278,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
     body=tree.css_first("body")
     body_text=node_text(body) if body else ""
     page_card_count=len(re.findall(
-        r"\bchallenger\\s+(?:graphite\\s+|start\\s+|break\\s+|etape\\s+|étape\\s+|premium\\s+)?328\\b",
+        r"\bchallenger\s+(?:graphite\s+|start\s+|break\s+|etape\s+|étape\s+|premium\s+)?328\\b",
         body_text,re.I
     ))
     probable_catalogue=any(m in url_low for m in catalogue_markers) or page_card_count>3
@@ -912,7 +912,7 @@ def price_associated_year(r, price, target_year, target_km=None):
     pos=price_positions[0]
     if len(price_positions)>1 and target_km is not None:
         km_positions=[]
-        for m in re.finditer(r"\b(\\d{1,3}(?:[ .]\\d{3})|\\d{3,6})\\s*km\\b",text.lower()):
+        for m in re.finditer(r"\b(\\d{1,3}(?:[ .]\\d{3})|\\d{3,6})\s*km\\b",text.lower()):
             try:
                 kv=clean_num(m.group(1))
             except ValueError:
