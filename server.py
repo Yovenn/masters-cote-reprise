@@ -295,7 +295,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
             low=text.lower()
             m=re.search(re.escape(str(target_model)),low,re.I)
             if not m and target_model:
-                compact=re.sub(r"\s+","\s*",re.escape(str(target_model)))
+                compact=re.sub(r"\s+",r"\\s*",re.escape(str(target_model)))
                 m=re.search(compact,low,re.I)
             window=low[max(0,(m.start() if m else 0)-1200):min(len(low),(m.end() if m else 1200)+1800)]
             prices=extract_prices(window)
