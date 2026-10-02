@@ -1169,13 +1169,25 @@ def cote():
         if detail_year is not None and detail_year!=year:
             return None
         if model and norm(model) not in norm(detail_title):
-            compact_model=norm(re.sub(r"(?<=[A-Za-z])(?=\\d)|(?<=\\d)(?=[A-Za-z])"," ",model))
+            compact_model=norm(re.sub(r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])"," ",model))
             if compact_model not in norm(detail_title):
+                return None
+
+        # Garde-fou : si Serper a déjà donné un kilométrage, la page détail
+        # doit confirmer le même véhicule. Sinon on refuse le détail et on
+        # conserve la donnée source de recherche.
+        snippet_kms=extract_kms(f"{r.get('title','')} {r.get('snippet','')}")
+        detail_km=detail.get("km")
+        if snippet_kms:
+            if detail_km is None:
+                return None
+            nearest=min(snippet_kms,key=lambda x:abs(x-int(detail_km)))
+            if abs(nearest-int(detail_km))>250:
                 return None
         return r,detail
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        futures=[pool.submit(scrape_candidate,r) for _,r in detail_candidates[:4]]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futures=[pool.submit(scrape_candidate,r) for _,r in detail_candidates[:8]]
         for fut in as_completed(futures):
             try:
                 result=fut.result()
