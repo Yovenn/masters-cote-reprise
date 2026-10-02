@@ -228,7 +228,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
         resp=requests.get(
             url,
             headers={"User-Agent":"Mozilla/5.0 (compatible; MastersCoteReprise/1.1)"},
-            timeout=10,
+            timeout=6,
             allow_redirects=True
         )
         if resp.status_code != 200 or not resp.text:
@@ -1134,7 +1134,7 @@ def cote():
     # 80 pages maximum : suffisamment large pour ne plus rater une annonce
     # pertinente cachée derrière plusieurs résultats de recherche, tout en
     # gardant un temps de réponse raisonnable.
-    for _,r in detail_candidates[:80]:
+    for _,r in detail_candidates[:18]:
         detail=fetch_detail_price_km(r,year,model,km)
         if detail and detail.get("price"):
             # Vérification finale : la page détail doit réellement correspondre
