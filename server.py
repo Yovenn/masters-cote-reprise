@@ -1,4 +1,5 @@
 import os, re, statistics, json, requests, unicodedata, subprocess, sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 try:
     from playwright.sync_api import sync_playwright
     PLAYWRIGHT_AVAILABLE = True
@@ -1073,35 +1074,46 @@ def cote():
     for mv in (str(model).strip(),model_compact,model_spaced.strip()):
         if mv and mv.lower() not in [x.lower() for x in model_variants]:
             model_variants.append(mv)
-    queries=[]
-    for mv in model_variants:
-        queries.extend([
-            f'"{brand} {mv}"{gamme_query} {year}{hp_query}{transmission_query} {market_term} occasion',
-            f'"{brand} {mv}" {year}{hp_query} "{km} km" {market_term} occasion',
-            f'"{brand} {mv}" {year} {market_term} occasion prix',
-            f'site:leboncoin.fr "{brand} {mv}" {year} {market_term}',
-            f'site:paruvendu.fr "{brand} {mv}" {year} {market_term}',
-            f'site:paruvendu.fr/a/caravaning-occasion/camping-car/ "{brand} {mv}" "{year}" "{km} km"',
-            f'site:hunyvers.com "{brand} {mv}" {year} {market_term}',
-            f'site:camping-car.com "{brand} {mv}" {year} {market_term}',
-            f'site:netcampers.fr "{brand} {mv}" {year} {market_term}',
-            f'site:annonces-caravaning.com "{brand} {mv}" {year} {market_term}'
-        ])
-    # Filet de sécurité : certaines annonces omettent la marque dans le titre.
-    queries.extend([
-        f'"{model}" {year} {market_term} occasion',
-        f'"{model_compact}" {year} {market_term} occasion',
-        f'site:netcampers.fr "{model}" {year} {market_term}',
-        f'site:annonces-caravaning.com "{model}" {year} {market_term}'
-    ])
+    # Recherche volontairement courte : on privilégie quelques requêtes très ciblées
+    # plutôt qu'une longue série d'appels Serper séquentiels.
+    queries=[
+        f'"{brand} {model}" {year} {market_term} occasion',
+        f'"{brand} {model}" {year} "{km} km" {market_term} occasion',
+        f'"{brand} {model}" {year} {market_term} prix occasion',
+        f'"{brand} {model_compact}" {year} {market_term} occasion',
+        f'site:leboncoin.fr "{brand} {model}" {year} {market_term}',
+        f'site:paruvendu.fr "{brand} {model}" {year} {market_term}',
+        f'site:hunyvers.com "{brand} {model}" {year} {market_term}',
+        f'site:camping-car.com "{brand} {model}" {year} {market_term}'
+    ]
+    # Si une gamme DICA précise existe, on ajoute une recherche ciblée.
+    if dica_gamme:
+        queries.append(f'"{brand} {model}" "{dica_gamme}" {year} {market_term} occasion')
+    queries=list(dict.fromkeys(queries))
     # Déduplication des requêtes pour ne pas gaspiller les appels Serper.
     queries=list(dict.fromkeys(queries))
     results=[]
-    for q in queries:
+    def serper_search(q):
         try:
-            resp=requests.post("https://google.serper.dev/search",headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},json={"q":q,"gl":"fr","hl":"fr","num":10},timeout=20); resp.raise_for_status()
-            for item in resp.json().get("organic",[]): item["source"]=q; results.append(item)
-        except requests.RequestException: continue
+            resp=requests.post(
+                "https://google.serper.dev/search",
+                headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},
+                json={"q":q,"gl":"fr","hl":"fr","num":10},
+                timeout=10
+            )
+            resp.raise_for_status()
+            return q, resp.json().get("organic",[])
+        except requests.RequestException:
+            return q, []
+    # Les recherches indépendantes sont lancées en parallèle pour éviter que
+    # plusieurs appels réseau successifs fassent dépasser le délai de l'interface.
+    with ThreadPoolExecutor(max_workers=min(6,len(queries))) as pool:
+        futures=[pool.submit(serper_search,q) for q in queries]
+        for fut in as_completed(futures):
+            q,items=fut.result()
+            for item in items:
+                item["source"]=q
+                results.append(item)
     uniq={r["link"]:r for r in results if r.get("link")}
     dedup={}
     for r in uniq.values():
@@ -1134,7 +1146,7 @@ def cote():
     # 80 pages maximum : suffisamment large pour ne plus rater une annonce
     # pertinente cachée derrière plusieurs résultats de recherche, tout en
     # gardant un temps de réponse raisonnable.
-    for _,r in detail_candidates[:18]:
+    for _,r in detail_candidates[:10]:
         detail=fetch_detail_price_km(r,year,model,km)
         if detail and detail.get("price"):
             # Vérification finale : la page détail doit réellement correspondre
