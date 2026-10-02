@@ -2,7 +2,7 @@ services:
   - type: web
     name: masters-cote-reprise
     runtime: python
-    buildCommand: pip install -r requirements.txt && python -m playwright install chromium
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn server:app
     envVars:
       - key: SERPER_API_KEY
