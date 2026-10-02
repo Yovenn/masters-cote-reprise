@@ -398,22 +398,25 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
         if key in seen:
             continue
         seen.add(key)
-        # Si un même conteneur contient plusieurs occurrences du modèle,
-        # il s’agit probablement d’un parent de plusieurs annonces : on ne
-        # lui associe jamais un prix/km.
-        if model_norm and len(re.findall(re.escape(model_norm), norm(txt)))>1:
-            continue
-        if gamme_norm and len(re.findall(re.escape(gamme_norm), norm(txt)))>1:
-            continue
         prices=extract_prices(txt)
         kms=extract_kms(txt)
         years=extract_years(txt)
         if not prices or not kms:
             continue
+
+        # Une carte valide doit contenir le modèle, la finition DICA,
+        # l’année et le kilométrage. On ne rejette PAS une carte parce que
+        # le modèle apparaît plusieurs fois : certains sites répètent le titre
+        # dans des éléments cachés/SEO d’une seule et même annonce.
         identity=score_identity(txt,kms[0])
         if identity<0:
             continue
         if target_year is not None and target_year not in years:
+            continue
+
+        # Si le bloc contient plusieurs véhicules distincts, on refuse le bloc
+        # parent. Indice robuste : plusieurs kilométrages ET plusieurs années.
+        if len(set(kms))>1 and len(set(years))>1:
             continue
         # Le kilométrage et le prix restent dans CE bloc DOM.
         nearest_km=min(kms,key=lambda k:abs(k-(target_km if target_km is not None else k)))
