@@ -88,8 +88,9 @@ for _path in sorted(glob.glob(os.path.join(BASE_DIR, "data", "dica32_poids_lourd
             if isinstance(row, list) and len(row) >= 8:
                 brand, model, type_, carrier, ptac, neuf, revente, page = row[:8]
             elif isinstance(row, list) and len(row) >= 7:
-                brand = ""
                 model, type_, carrier, ptac, neuf, revente, page = row[:7]
+                carrier_text = str(carrier or "")
+                brand = next((b for b in ("Mercedes","Iveco","Fiat","Ford","Citroën","Citroen","MAN","Renault","Volvo","Scania") if b.lower() in carrier_text.lower()), "")
             else:
                 continue
             DICA_PL.append({"year":_year,"brand":brand,"brand_norm":norm(brand),"model":model,"model_norm":norm(model),"type":type_,"carrier":carrier,"ptac":ptac,"neuf":neuf,"revente":revente,"page":page})
