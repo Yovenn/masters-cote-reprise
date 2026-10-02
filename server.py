@@ -255,10 +255,19 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
     page_years=extract_years(page_title)
     title_model_ok=bool(model_norm and model_norm in norm(page_title))
     title_year_ok=bool(target_year is None or target_year in page_years)
+    url_low=url.lower()
+    catalogue_markers=("/recherche","/search","/listing","/annonces","?q=","&q=","resultats","results","/stock")
 
     def valid_text(txt):
         txt=re.sub(r"\s+"," ",unescape(re.sub(r"<[^>]+>"," ",str(txt or "")))).strip()
         return txt
+
+    page_text=valid_text(html)
+    page_card_count=len(re.findall(
+        r"\\bchallenger\\s+(?:graphite\\s+|start\\s+|break\\s+|etape\\s+|étape\\s+|premium\\s+)?328\\b",
+        page_text, re.I
+    ))
+    probable_catalogue=any(m in url_low for m in catalogue_markers) or page_card_count>3
 
     def score_identity(name="", desc="", year=None, km=None):
         txt=f"{name} {desc} {page_title}"
@@ -356,48 +365,49 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
             if key in ("product:price:amount","og:price:amount","price"):
                 add_candidate(ct.group(1),target_km,target_year,page_title,"","meta",190)
 
+    if not probable_catalogue:
     # 3) Blocs HTML : on cherche des éléments qui ressemblent à une offre
-    # (price/prix + kilométrage) et on score le bloc entier. On ne prend plus
-    # jamais "le premier prix après le h1".
-    blocks=[]
-    patterns=[
-        r'<[^>]+(?:class|id)=["\'][^"\']*(?:price|prix|offer|offre|vehicle|vehicule|product|annonce)[^"\']*["\'][^>]*>.*?</[^>]+>',
-        r'<(?:article|section|li|div)[^>]*>.*?</(?:article|section|li|div)>'
-    ]
-    for pat in patterns:
-        try:
-            blocks.extend(re.findall(pat,html,re.I|re.S))
-        except re.error:
-            pass
-
-    # Limite les blocs et déduplique les textes.
-    seen_blocks=set()
-    for raw in blocks[:2500]:
-        txt=valid_text(raw)
-        key=norm(txt[:2000])
-        if not txt or key in seen_blocks:
-            continue
-        seen_blocks.add(key)
-        if len(txt)>12000:
-            txt=txt[:12000]
-        prices=extract_prices(txt)
-        kms=extract_kms(txt)
-        years=extract_years(txt)
-        if not prices:
-            continue
-        # Un bloc doit identifier le modèle ou, au minimum, l'année cible.
-        identity=score_identity(txt,"",years[0] if years else None,kms[0] if kms else None)
-        if identity < 0:
-            continue
-        for p in prices:
-            nearest_km=min(kms,key=lambda k:abs(k-(target_km or k))) if kms else None
-            nearest_year=min(years,key=lambda y:abs(y-(target_year or y))) if years else None
-            add_candidate(p,nearest_km,nearest_year,txt[:300],txt,"html-block",120+max(0,identity))
-
-    # 4) Dernier filet : texte autour du modèle. Les prix sont alors associés
+        # (price/prix + kilométrage) et on score le bloc entier. On ne prend plus
+        # jamais "le premier prix après le h1".
+        blocks=[]
+        patterns=[
+            r'<[^>]+(?:class|id)=["\'][^"\']*(?:price|prix|offer|offre|vehicle|vehicule|product|annonce)[^"\']*["\'][^>]*>.*?</[^>]+>',
+            r'<(?:article|section|li|div)[^>]*>.*?</(?:article|section|li|div)>'
+        ]
+        for pat in patterns:
+            try:
+                blocks.extend(re.findall(pat,html,re.I|re.S))
+            except re.error:
+                pass
+    
+        # Limite les blocs et déduplique les textes.
+        seen_blocks=set()
+        for raw in blocks[:2500]:
+            txt=valid_text(raw)
+            key=norm(txt[:2000])
+            if not txt or key in seen_blocks:
+                continue
+            seen_blocks.add(key)
+            if len(txt)>12000:
+                txt=txt[:12000]
+            prices=extract_prices(txt)
+            kms=extract_kms(txt)
+            years=extract_years(txt)
+            if not prices:
+                continue
+            # Un bloc doit identifier le modèle ou, au minimum, l'année cible.
+            identity=score_identity(txt,"",years[0] if years else None,kms[0] if kms else None)
+            if identity < 0:
+                continue
+            for p in prices:
+                nearest_km=min(kms,key=lambda k:abs(k-(target_km or k))) if kms else None
+                nearest_year=min(years,key=lambda y:abs(y-(target_year or y))) if years else None
+                add_candidate(p,nearest_km,nearest_year,txt[:300],txt,"html-block",120+max(0,identity))
+    
+        # 4) Dernier filet : texte autour du modèle. Les prix sont alors associés
     # au kilométrage le plus proche, jamais à un prix provenant d'une autre
     # occurrence éloignée dans la page.
-    if title_model_ok and title_year_ok:
+    if title_model_ok and title_year_ok and not probable_catalogue:
         text=valid_text(html)
         low=text.lower()
         model_match=re.search(re.escape(str(target_model)),low,re.I) if target_model else None
@@ -435,6 +445,11 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
                         add_candidate(p, nearest_km, nearest_year, page_title, window, "playwright-text", 120)
 
     if not candidates:
+        return None
+
+    # Une page catalogue peut contenir plusieurs véhicules. Sans donnée
+    # structurée identifiant une offre unique, on refuse l'association.
+    if probable_catalogue and not any(x["source"] in ("jsonld","meta") for x in candidates):
         return None
 
     # Déduplication des mêmes valeurs/source puis sélection par identité,
