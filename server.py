@@ -287,7 +287,10 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
         nt=norm(text)
         if model_norm and model_norm not in nt:
             return -1000
-        if gamme_norm and gamme_norm not in nt:
+        # Les sites d'annonces raccourcissent parfois une finition DICA :
+        # « GRAPHITE EDITION PREMIUM – 328 » devient « Graphite Premium 328 ».
+        gamme_ok = (not gamme_norm) or (gamme_norm in nt) or finish_alias_match(text, target_gamme, target_model)
+        if not gamme_ok:
             return -1000
         score=100.0 if model_norm else 0.0
         if gamme_norm:
@@ -692,6 +695,23 @@ def model_match_score(text,model):
         return 48
     return 0
 
+def finish_alias_match(text, requested_gamme, model=""):
+    """Reconnaît les abréviations de finition utilisées par les sites d'annonces.
+    Exemple : GRAPHITE EDITION PREMIUM – 328 -> « Graphite Premium 328 ».
+    """
+    if not requested_gamme:
+        return False
+    raw = unicodedata.normalize("NFKD", str(requested_gamme)).encode("ascii","ignore").decode("ascii").lower()
+    model_raw = unicodedata.normalize("NFKD", str(model or "")).encode("ascii","ignore").decode("ascii").lower()
+    tokens = re.findall(r"[a-z0-9]+", raw)
+    model_tokens = set(re.findall(r"[a-z0-9]+", model_raw))
+    distinctive = [t for t in tokens if t not in model_tokens and t != "edition"]
+    if not distinctive:
+        return False
+    tn = norm(text)
+    return all(norm(t) in tn for t in distinctive)
+
+
 def dica_gamme_score(text,brand,model,year,requested_gamme,category="camping"):
     """
     Filtrage strict de finition/gamme.
@@ -719,16 +739,16 @@ def dica_gamme_score(text,brand,model,year,requested_gamme,category="camping"):
 
     text_norm=norm(text)
     matched=[g for g in candidates if g in text_norm]
-    if not matched:
-        # Si une finition précise est demandée, une annonce sans finition
-        # explicite est insuffisante pour une cote de version.
+    if matched:
+        longest=max(matched,key=len)
+        if longest==requested:
+            return 20
         return -35
 
-    longest=max(matched,key=len)
-    if longest==requested:
+    # Accepte une abréviation non ambiguë de la même finition.
+    if finish_alias_match(text, requested_gamme, model):
         return 20
 
-    # Une autre finition explicitement mentionnée est exclue.
     return -35
 
 def score_result(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
@@ -1093,9 +1113,21 @@ def cote():
         f'"{brand} {model}" "{dica_gamme}" {year} prix occasion',
         f'site:leboncoin.fr "{brand} {model}" "{dica_gamme}" {year} {market_term}'
     ]
-    # Si une gamme DICA précise existe, on ajoute une recherche ciblée.
+    # Si une gamme DICA précise existe, on ajoute aussi les écritures
+    # utilisées par les sites d'annonces : « Graphite Premium » par exemple.
     if dica_gamme:
         queries.append(f'"{brand} {model}" "{dica_gamme}" {year} {market_term} occasion')
+        gamme_search = re.sub(r"\bedition\b", "", str(dica_gamme), flags=re.I)
+        gamme_search = re.sub(r"[-–—]", " ", gamme_search)
+        gamme_search = re.sub(r"\s+", " ", gamme_search).strip()
+        if gamme_search and norm(gamme_search) != norm(dica_gamme):
+            queries.append(f'"{brand} {model}" "{gamme_search}" {year} {market_term} occasion')
+        gamme_short = re.sub(r"\b"+re.escape(str(model).strip())+r"\b", "", gamme_search, flags=re.I)
+        gamme_short = re.sub(r"\s+", " ", gamme_short).strip(" -–—")
+        if gamme_short:
+            queries.append(f'"{brand} {model}" "{gamme_short}" {year} {market_term} occasion')
+            queries.append(f'"{brand} {model} {gamme_short}" {year} {market_term} occasion')
+            queries.append(f'"{brand} {model}" {year} "{km} km" "{gamme_short}" {market_term}')
     if dica_gamme:
         queries.extend([
             f'"{brand} {model}" {year} {market_term} occasion -"Start Edition" -"Etape Edition"',
