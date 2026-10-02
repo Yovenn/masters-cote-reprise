@@ -739,7 +739,9 @@ def cote():
             f'site:paruvendu.fr "{brand} {mv}" {year} {market_term}',
             f'site:paruvendu.fr/a/caravaning-occasion/camping-car/ "{brand} {mv}" "{year}" "{km} km"',
             f'site:hunyvers.com "{brand} {mv}" {year} {market_term}',
-            f'site:camping-car.com "{brand} {mv}" {year} {market_term}'
+            f'site:camping-car.com "{brand} {mv}" {year} {market_term}',
+            f'site:netcampers.fr "{brand} {mv}" {year} {market_term}',
+            f'site:annonces-caravaning.com "{brand} {mv}" {year} {market_term}'
         ])
     # Filet de sécurité : certaines annonces omettent la marque dans le titre.
     queries.extend([
@@ -777,7 +779,9 @@ def cote():
             f'"{brand}" {year} {market_term} occasion',
             f'"{brand}" {year} {market_term} prix occasion',
             f'site:leboncoin.fr "{brand}" {year} {market_term}',
-            f'site:camping-car.com "{brand}" {year}'
+            f'site:camping-car.com "{brand}" {year}',
+            f'site:netcampers.fr "{brand}" {year} {market_term}',
+            f'site:annonces-caravaning.com "{brand}" {year} {market_term}'
         ]
         brand_results=[]
         for q in brand_queries:
