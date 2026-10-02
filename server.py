@@ -1196,15 +1196,27 @@ def cote():
             f'site:annonces-caravaning.com "{brand}" {year} {market_term}'
         ]
         brand_results=[]
-        for q in brand_queries:
+        def brand_search(q):
             try:
-                resp=requests.post("https://google.serper.dev/search",headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},json={"q":q,"gl":"fr","hl":"fr","num":10},timeout=20)
+                resp=requests.post(
+                    "https://google.serper.dev/search",
+                    headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},
+                    json={"q":q,"gl":"fr","hl":"fr","num":10},
+                    timeout=8
+                )
                 resp.raise_for_status()
-                for item in resp.json().get("organic",[]):
+                return q, resp.json().get("organic",[])
+            except requests.RequestException:
+                return q, []
+        # Ce filet de sécurité ne doit jamais ajouter 6 appels Serper séquentiels
+        # après la recherche principale.
+        with ThreadPoolExecutor(max_workers=min(6,len(brand_queries))) as pool:
+            futures=[pool.submit(brand_search,q) for q in brand_queries]
+            for fut in as_completed(futures):
+                q,items=fut.result()
+                for item in items:
                     item["source"]=q
                     brand_results.append(item)
-            except requests.RequestException:
-                continue
         brand_unique={x.get("link"):x for x in brand_results if x.get("link")}
         experimental_brand=experimental_brand_value(list(brand_unique.values()),brand,year,category,requested_gamme=dica_gamme,requested_model=model)
         if category!="poids_lourd" and experimental_brand and len(dica)==1:
