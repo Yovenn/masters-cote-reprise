@@ -1385,7 +1385,24 @@ def cote():
         if x["url"] and x["url"] not in _seen_mc: _seen_mc.add(x["url"]); _mc.append(x)
     manual_candidates=_mc[:40]
 
+    # Le navigateur renvoie aussi les données des annonces cochées. Cela
+    # permet de conserver exactement les annonces présentées à l'utilisateur,
+    # même si le classement Serper change entre les deux appels.
+    selected_ads=data.get("selected_ads") or []
+    for ad in selected_ads:
+        if not isinstance(ad,dict): continue
+        url=str(ad.get("url","") or "").strip()
+        if not url: continue
+        if url not in dedup:
+            dedup[url]={
+                "link":url,
+                "title":str(ad.get("title","") or ""),
+                "snippet":str(ad.get("snippet","") or ""),
+                "source":"selection_manuelle"
+            }
+
     selected_urls={str(u).strip() for u in (data.get("selected_urls") or []) if str(u).strip()}
+    selected_urls.update(str(ad.get("url","")).strip() for ad in selected_ads if isinstance(ad,dict) and str(ad.get("url","")).strip())
     if selected_urls:
         selected_rows=[]
         for r in dedup.values():
