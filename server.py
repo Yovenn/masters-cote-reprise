@@ -1218,11 +1218,10 @@ def collecte_diagnostic():
     for y in market_years:
         for mv in variants:
             queries.extend([
-                f'site:leboncoin.fr/ck/caravaning "{brand} {mv}" {y}',
-                f'site:leboncoin.fr/ck/caravaning "{mv}" {y}',
-                f'"{brand} {mv}" {y} {market_term} occasion',
-                f'site:paruvendu.fr "{brand} {mv}" {y}',
-                f'site:camping-car.com/occasion/annonces "{brand} {mv}" {y}',
+                f'site:leboncoin.fr/ad/ "{brand} {mv}" {y}',
+                f'site:leboncoin.fr/ad/ "{mv}" {y}',
+                f'site:paruvendu.fr/a/caravaning-occasion/ "{brand} {mv}" {y}',
+                f'site:camping-car.com/occasion/ "{brand} {mv}" {y}',
                 f'site:campingcarannonces.com "{brand} {mv}" {y}'
             ])
     queries=list(dict.fromkeys(queries))
@@ -1253,35 +1252,67 @@ def collecte_diagnostic():
                 item["_query"]=q
                 results.append(item)
 
+    def is_direct_listing_url(url):
+        u=str(url or "").strip().lower()
+        if not u.startswith(("http://","https://")):
+            return False
+        if "leboncoin.fr" in u:
+            return "/ad/" in u
+        if "paruvendu.fr" in u:
+            return "/a/caravaning-occasion/" in u
+        for marker in ("/recherche", "/search", "/listing", "/resultats", "/results", "/stock", "?q=", "&q="):
+            if marker in u:
+                return False
+        return True
+
     rows=[]
     seen=set()
     for r in results:
         url=str(r.get("link","") or "").strip()
-        if not url or url in seen:
+        if not url or url in seen or not is_direct_listing_url(url):
             continue
         seen.add(url)
         txt=f"{r.get('title','')} {r.get('snippet','')}"
-        prices=extract_prices(txt)
-        kms=extract_kms(txt)
-        years=extract_years(txt)
-        price=prices[0] if prices else None
-        km=kms[0] if kms else None
-        detected_year=next((y for y in years if y in market_years),None)
+        raw_prices=extract_prices(txt)
+        raw_kms=extract_kms(txt)
+        raw_years=extract_years(txt)
+
+        detail=fetch_detail_price_km(
+            {"link":url},
+            target_year=None,
+            target_model=None,
+            target_km=None,
+            target_gamme=None
+        ) or {}
+
+        price=detail.get("price") if detail.get("price") is not None else (raw_prices[0] if raw_prices else None)
+        km=detail.get("km") if detail.get("km") is not None else (raw_kms[0] if raw_kms else None)
+        detail_title=str(detail.get("title","") or "")
+        detail_year=detail.get("year")
+        years=extract_years(f"{detail_title} {txt}")
+        detected_year=detail_year if detail_year in market_years else next((y for y in years if y in market_years),None)
+
         domain=""
         try:
-            domain=re.sub(r"^www\.","",requests.utils.urlparse(url).netloc.lower())
+            from urllib.parse import urlparse
+            domain=re.sub(r"^www\.","",urlparse(url).netloc.lower())
         except Exception:
             pass
+
         rows.append({
             "source_domain":domain,
-            "title":r.get("title",""),
+            "title":detail_title or r.get("title",""),
             "url":url,
             "snippet":r.get("snippet",""),
             "price":price,
             "km":km,
             "year":detected_year,
             "all_years":years[:6],
-            "query":r.get("_query","")
+            "query":r.get("_query",""),
+            "direct_listing":True,
+            "detail_scraped":bool(detail),
+            "raw_price":raw_prices[0] if raw_prices else None,
+            "raw_km":raw_kms[0] if raw_kms else None
         })
 
     def site_key(domain):
@@ -1309,6 +1340,7 @@ def collecte_diagnostic():
         "queries":len(queries),
         "raw_results":len(results),
         "unique_annonces":len(rows),
+        "direct_fiches":len(rows),
         "errors":errors,
         "stats":stats,
         "annonces":rows[:100]
