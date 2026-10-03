@@ -1325,7 +1325,7 @@ def cote():
         f'site:paruvendu.fr "{brand} {model}" {market_year_query} camping-car occasion',
         f'"{brand}" "{model}" {market_year_query} {market_term}'
     ]
-    queries=base_queries
+    queries=base_queries + [q.replace(str(year),str(year+1)) for q in base_queries]
     queries=list(dict.fromkeys(queries))
     # Déduplication des requêtes pour ne pas gaspiller les appels Serper.
     queries=list(dict.fromkeys(queries))
