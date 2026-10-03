@@ -1235,10 +1235,11 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     }
 
 def collect_lbc_search_results(brand, model, years, max_pages=3):
-    """Collecte LBC ultra-légère via le endpoint public de recherche utilisé
-    par le site/app : HTTP + curl_cffi, sans Chromium ni parsing HTML."""
+    """Collecte LBC ultra-légère via le Finder.
+    Retourne (annonces, erreurs) afin que le diagnostic distingue
+    une vraie absence d'annonce d'un blocage HTTP/anti-bot."""
     if not CURL_CFFI_AVAILABLE:
-        return []
+        return [], ["curl_cffi indisponible"]
 
     def attr_value(ad,key):
         for a in ad.get("attributes",[]) or []:
@@ -1247,17 +1248,24 @@ def collect_lbc_search_results(brand, model, years, max_pages=3):
         return None
 
     def search_one(query_text,page_no):
+        errors=[]
         try:
-            session=curl_requests.Session(impersonate="chrome_android")
-            session.headers.update({
-                "User-Agent":"LBC;Android;15;Pixel 8;phone;masters-cote-reprise;wifi;100.85.2",
-                "Accept":"application/json",
-                "Content-Type":"application/json",
-                "Origin":"https://www.leboncoin.fr",
-                "Referer":"https://www.leboncoin.fr/"
-            })
-            session.get("https://www.leboncoin.fr/",timeout=8)
-            payload={
+            for impersonate in ("chrome_android","chrome"):
+                try:
+                    session=curl_requests.Session(impersonate=impersonate)
+                    session.headers.update({
+                        "User-Agent":"LBC;Android;15;Pixel 8;phone;masters-cote-reprise;wifi;100.85.2",
+                        "Accept":"application/json,application/hal+json",
+                        "Content-Type":"application/json",
+                        "Origin":"https://www.leboncoin.fr",
+                        "Referer":"https://www.leboncoin.fr/",
+                        "X-LBC-CC":"7"
+                    })
+                    proxy=os.environ.get("LBC_PROXY_URL","").strip()
+                    if proxy:
+                        session.proxies.update({"http":proxy,"https":proxy})
+                    session.get("https://www.leboncoin.fr/",timeout=8)
+                    payload={
                 "filters":{
                     "category":{"id":"4"},
                     "keywords":{"text":query_text},
@@ -1270,27 +1278,35 @@ def collect_lbc_search_results(brand, model, years, max_pages=3):
                 "extend":True,
                 "listing_source":"direct-search" if page_no==1 else "pagination"
             }
-            resp=session.post(
-                "https://api.leboncoin.fr/finder/search",
-                json=payload,
-                timeout=12
-            )
-            if not resp.ok:
-                return []
-            data=resp.json() or {}
-            return data.get("ads",[]) or []
-        except Exception:
-            return []
+                    resp=session.post(
+                        "https://api.leboncoin.fr/finder/search",
+                        json=payload,
+                        timeout=12
+                    )
+                    if resp.ok:
+                        data=resp.json() or {}
+                        return data.get("ads",[]) or [], errors
+                    errors.append(f"{query_text} p{page_no}: HTTP {resp.status_code}")
+                    if resp.status_code not in (403,429,451):
+                        break
+                except Exception as exc:
+                    errors.append(f"{query_text} p{page_no}: {type(exc).__name__}: {exc}")
+            return [], errors
+        except Exception as exc:
+            return [], [f"{query_text} p{page_no}: {type(exc).__name__}: {exc}"]
 
     collected=[]
+    lbc_errors=[]
     jobs=[(f"{brand} {model} {y}",p) for y in years for p in range(1,max_pages+1)]
     with ThreadPoolExecutor(max_workers=min(4,len(jobs))) as pool:
         futures=[pool.submit(search_one,q,p) for q,p in jobs]
         for fut in as_completed(futures):
             try:
-                collected.extend(fut.result())
-            except Exception:
-                pass
+                ads,errs=fut.result()
+                collected.extend(ads)
+                lbc_errors.extend(errs)
+            except Exception as exc:
+                lbc_errors.append(f"worker: {type(exc).__name__}: {exc}")
 
     unique=[]
     seen=set()
@@ -1385,7 +1401,7 @@ def collect_lbc_search_results(brand, model, years, max_pages=3):
             "raw_price":price,
             "raw_km":km
         })
-    return unique
+    return unique, lbc_errors
 
 
 @app.post("/api/collecte")
@@ -1469,7 +1485,7 @@ def collecte_diagnostic():
 
     # Collecte LBC directe : le prix est extrait de la page de résultats
     # actuelle, dans le même bloc que l'annonce. C'est la source de vérité LBC.
-    lbc_direct=collect_lbc_search_results(brand,model,market_years,max_pages=3)
+    lbc_direct,lbc_errors=collect_lbc_search_results(brand,model,market_years,max_pages=3)
     rows=[]
     seen=set()
     for lr in lbc_direct:
@@ -1601,6 +1617,8 @@ def collecte_diagnostic():
         "unique_annonces":len(rows),
         "direct_fiches":len(rows),
         "errors":errors,
+        "lbc_errors":lbc_errors[:30],
+        "lbc_proxy_configured":bool(os.environ.get("LBC_PROXY_URL","").strip()),
         "stats":stats,
         "annonces":rows[:100]
     })
