@@ -190,8 +190,8 @@ def extract_prices(text):
     # comme un espace classique ou un point.
     sep=r"[ .\u00a0\u202f]"
     patterns=[
-        rf"(\\d{{2,3}}(?:{sep}\\d{{3}})+|\\d{{4,6}})\\s*€",
-        rf"€\\s*(\\d{{2,3}}(?:{sep}\\d{{3}})+|\\d{{4,6}})"
+        rf"(\d{{2,3}}(?:{sep}\d{{3}})+|\d{{4,6}})\s*€",
+        rf"€\s*(\d{{2,3}}(?:{sep}\d{{3}})+|\d{{4,6}})"
     ]
     for p in patterns:
         for m in re.finditer(p,text):
