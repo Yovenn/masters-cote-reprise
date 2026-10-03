@@ -1187,6 +1187,133 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
         "provenance":provenance,"fields_verified":[k for k,v in fields.items() if v],
         "complete_fields":complete,"evidence":evidence
     }
+@app.post("/api/collecte")
+def collecte_diagnostic():
+    """Diagnostic pur de collecte : recherche les annonces et retourne les données brutes.
+    Aucun scoring, aucune cote, aucun filtre de finition et aucune correction kilométrique.
+    """
+    data=request.get_json(force=True) or {}
+    category=str(data.get("category","camping")).strip().lower()
+    brand=str(data.get("brand","")).strip()
+    model=str(data.get("model","")).strip()
+    try:
+        year=int(data.get("year"))
+    except (TypeError,ValueError):
+        return jsonify({"error":"Année invalide."}),400
+    if category not in ("camping","poids_lourd","van","fourgon") or not brand or not model:
+        return jsonify({"error":"Marque, modèle, année et catégorie sont nécessaires."}),400
+    if not SERPER_API_KEY:
+        return jsonify({"error":"SERPER_API_KEY manquante sur le serveur."}),500
+
+    market_years=(year,year+1)
+    market_term="camping-car poids lourd" if category=="poids_lourd" else ("camping-car" if category=="camping" else ("fourgon aménagé" if category=="fourgon" else "van aménagé"))
+    variants=[]
+    compact=re.sub(r"\s+","",model)
+    spaced=re.sub(r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])"," ",model).strip()
+    for mv in (model,compact,spaced):
+        if mv and mv.lower() not in [x.lower() for x in variants]:
+            variants.append(mv)
+
+    queries=[]
+    for y in market_years:
+        for mv in variants:
+            queries.extend([
+                f'site:leboncoin.fr/ck/caravaning "{brand} {mv}" {y}',
+                f'site:leboncoin.fr/ck/caravaning "{mv}" {y}',
+                f'"{brand} {mv}" {y} {market_term} occasion',
+                f'site:paruvendu.fr "{brand} {mv}" {y}',
+                f'site:camping-car.com/occasion/annonces "{brand} {mv}" {y}',
+                f'site:campingcarannonces.com "{brand} {mv}" {y}'
+            ])
+    queries=list(dict.fromkeys(queries))
+
+    def search_one(q):
+        try:
+            resp=requests.post(
+                "https://google.serper.dev/search",
+                headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},
+                json={"q":q,"gl":"fr","hl":"fr","num":10},
+                timeout=12
+            )
+            resp.raise_for_status()
+            return q,resp.json().get("organic",[]),None
+        except Exception as exc:
+            return q,[],str(exc)
+
+    results=[]
+    errors=[]
+    with ThreadPoolExecutor(max_workers=min(8,len(queries))) as pool:
+        futures=[pool.submit(search_one,q) for q in queries]
+        for fut in as_completed(futures):
+            q,items,err=fut.result()
+            if err:
+                errors.append({"query":q,"error":err})
+            for item in items:
+                item=dict(item)
+                item["_query"]=q
+                results.append(item)
+
+    rows=[]
+    seen=set()
+    for r in results:
+        url=str(r.get("link","") or "").strip()
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        txt=f"{r.get('title','')} {r.get('snippet','')}"
+        prices=extract_prices(txt)
+        kms=extract_kms(txt)
+        years=extract_years(txt)
+        price=prices[0] if prices else None
+        km=kms[0] if kms else None
+        detected_year=next((y for y in years if y in market_years),None)
+        domain=""
+        try:
+            domain=re.sub(r"^www\.","",requests.utils.urlparse(url).netloc.lower())
+        except Exception:
+            pass
+        rows.append({
+            "source_domain":domain,
+            "title":r.get("title",""),
+            "url":url,
+            "snippet":r.get("snippet",""),
+            "price":price,
+            "km":km,
+            "year":detected_year,
+            "all_years":years[:6],
+            "query":r.get("_query","")
+        })
+
+    def site_key(domain):
+        d=domain.lower()
+        if "leboncoin" in d:return "Leboncoin"
+        if "paruvendu" in d:return "ParuVendu"
+        if "camping-car.com" in d:return "Camping-Car.com"
+        if "campingcarannonces" in d:return "CampingCarAnnonces"
+        return domain or "Autre"
+
+    stats={}
+    for x in rows:
+        s=site_key(x["source_domain"])
+        z=stats.setdefault(s,{"annonces":0,"prix":0,"km":0,"annee":0})
+        z["annonces"]+=1
+        z["prix"]+=int(x["price"] is not None)
+        z["km"]+=int(x["km"] is not None)
+        z["annee"]+=int(x["year"] is not None)
+
+    rows.sort(key=lambda x:(x["year"] not in market_years, x["source_domain"], -(x["price"] or 0)))
+    return jsonify({
+        "status":"ok",
+        "mode":"diagnostic_collecte",
+        "vehicle":{"category":category,"brand":brand,"model":model,"years":list(market_years)},
+        "queries":len(queries),
+        "raw_results":len(results),
+        "unique_annonces":len(rows),
+        "errors":errors,
+        "stats":stats,
+        "annonces":rows[:100]
+    })
+
 @app.get("/")
 def home(): return send_from_directory("static","index.html")
 @app.get("/api/dica/catalog")
