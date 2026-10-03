@@ -1262,7 +1262,8 @@ def collecte_diagnostic():
                 f'site:leboncoin.fr/ad/ "{mv}" {y}',
                 f'site:paruvendu.fr/a/caravaning-occasion/ "{brand} {mv}" {y}',
                 f'site:camping-car.com/occasion/ "{brand} {mv}" {y}',
-                f'site:campingcarannonces.com "{brand} {mv}" {y}'
+                f'site:campingcarannonces.com "{brand} {mv}" {y}',
+                f'site:annonces-caravaning.com "{brand} {mv}" {y}'
             ])
     queries=list(dict.fromkeys(queries))
 
@@ -1390,7 +1391,11 @@ def collecte_diagnostic():
             "direct_listing":True,
             "detail_scraped":bool(detail),
             "raw_price":raw_prices[0] if raw_prices else None,
-            "raw_km":raw_kms[0] if raw_kms else None
+            "raw_km":raw_kms[0] if raw_kms else None,
+            # Pour LBC, ce prix peut provenir d'une indexation ancienne :
+            # il est affiché uniquement comme information, jamais utilisé
+            # comme prix de marché confirmé.
+            "prix_indexe_lbc": (raw_prices[0] if ("leboncoin.fr" in domain and raw_prices) else None)
         })
 
     # IMPORTANT : pour Leboncoin, aucune récupération secondaire via
@@ -1404,6 +1409,7 @@ def collecte_diagnostic():
         if "paruvendu" in d:return "ParuVendu"
         if "camping-car.com" in d:return "Camping-Car.com"
         if "campingcarannonces" in d:return "CampingCarAnnonces"
+        if "annonces-caravaning" in d:return "Annonces-Caravaning"
         return domain or "Autre"
 
     stats={}
