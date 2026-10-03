@@ -384,13 +384,16 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
                     identity_text=f"{name} {desc}"
                     if model_norm and model_norm not in norm(identity_text):
                         continue
-                    if target_year is not None and target_year not in yrs:
+                    # La date peut être absente du JSON-LD de l'Offer
+                    # alors qu'elle est bien présente dans le titre de la fiche.
+                    # On utilise donc aussi le titre de page comme preuve d'année.
+                    if target_year is not None and target_year not in yrs and target_year not in page_years:
                         continue
                     add_candidate(
                         offer.get("price"),
                         kms[0] if kms else None,
-                        yrs[0] if yrs else target_year,
-                        combined,
+                        yrs[0] if yrs else (target_year if target_year in page_years else None),
+                        combined + " " + page_title,
                         "jsonld",
                         260
                     )
