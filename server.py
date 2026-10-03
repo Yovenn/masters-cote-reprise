@@ -1118,6 +1118,16 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
     if is_aggregation(r): score-=10
     if score<65: return None
+
+    # Une annonce ne devient COMPARABLE automatique que si la finition DICA
+    # demandée est réellement prouvée dans cette même annonce.
+    # Une annonce sans finition reste disponible dans la sélection manuelle,
+    # mais ne doit plus apparaître comme comparable qualifié.
+    if dica_gamme:
+        ev=evidence_for_result(r,brand,model,year,target_km,dica_gamme)
+        if not bool((ev.get("finition") or {}).get("ok")):
+            return None
+
     adjusted=price; km_adjustment=0
     if rkm is not None:
         if category=="poids_lourd":
@@ -1470,7 +1480,19 @@ def cote():
         row=comparable_row(r,brand,model,year,km,hp,transmission,dica_gamme,category)
         if not row: continue
         (context if row["km"] is None else rows).append(row)
-    rows.sort(key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True); context.sort(key=lambda x:x["score"],reverse=True)
+
+    # Déduplication des annonces syndiquées : plusieurs sites peuvent reprendre
+    # exactement le même véhicule avec le même prix et le même kilométrage.
+    # Une seule occurrence doit compter dans la cote.
+    seen_market=set(); unique_rows=[]
+    for row in sorted(rows,key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True):
+        fp=(norm(brand),norm(model),year,int(row.get("price") or 0),int(row.get("km") or 0))
+        if fp in seen_market:
+            continue
+        seen_market.add(fp)
+        unique_rows.append(row)
+    rows=unique_rows
+    context.sort(key=lambda x:x["score"],reverse=True)
 
     # Annonces proposées à la sélection manuelle.
     manual_candidates=[]
