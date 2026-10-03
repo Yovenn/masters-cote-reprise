@@ -1407,7 +1407,12 @@ def cote():
     for x in sorted(manual_candidates,key=lambda x:(x.get("score",0),-abs((x.get("km") or km)-km)),reverse=True):
         if x.get("url") and x["url"] not in _seen_mc:
             _seen_mc.add(x["url"]); _mc.append(x)
-    manual_candidates=_mc[:40]
+    # Les annonces sans kilométrage doivent rester visibles : le vendeur
+    # doit pouvoir ouvrir la fiche et valider lui-même la présence du km.
+    # On garde les meilleures annonces avec km + jusqu'à 20 annonces sans km.
+    _with_km=[x for x in _mc if x.get("km") is not None]
+    _without_km=[x for x in _mc if x.get("km") is None]
+    manual_candidates=(_with_km[:30]+_without_km[:20])[:50]
 
     # Le navigateur renvoie aussi les données des annonces cochées. Cela
     # permet de conserver exactement les annonces présentées à l'utilisateur,
@@ -1446,6 +1451,8 @@ def cote():
                         price,rkm=parse_price_km(r,year,km)
                 except Exception:
                     pass
+            # Une annonce cochée sans km reste sélectionnée mais ne peut entrer
+            # dans la moyenne que si son kilométrage a finalement été récupéré.
             if not price or rkm is None or is_new(r) or is_unavailable(r): continue
             if category=="poids_lourd":
                 ref_km,over_rate,under_rate=poids_lourd_km_rules(f"{r.get('title','')} {r.get('snippet','')}")
