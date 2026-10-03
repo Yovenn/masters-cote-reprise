@@ -1342,8 +1342,17 @@ def collecte_diagnostic():
         # ou prix ancien). Pour LBC, le prix doit venir de la fiche actuelle.
         if "leboncoin.fr" in domain:
             price=detail.get("price") if detail.get("price") is not None else None
+            price_source="fiche_detail" if price is not None else None
         else:
-            price=detail.get("price") if detail.get("price") is not None else (raw_prices[0] if raw_prices else None)
+            if detail.get("price") is not None:
+                price=detail.get("price")
+                price_source="fiche_detail"
+            elif raw_prices:
+                price=raw_prices[0]
+                price_source="resultat_recherche"
+            else:
+                price=None
+                price_source=None
         km=detail.get("km") if detail.get("km") is not None else (raw_kms[0] if raw_kms else None)
         detail_title=str(detail.get("title","") or "")
         detail_year=detail.get("year")
@@ -1356,6 +1365,7 @@ def collecte_diagnostic():
             "url":url,
             "snippet":r.get("snippet",""),
             "price":price,
+            "price_source":price_source,
             "km":km,
             "year":detected_year,
             "all_years":years[:6],
