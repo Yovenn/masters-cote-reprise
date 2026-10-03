@@ -531,7 +531,17 @@ def parse_price_km(r, target_year=None, target_km=None):
         ps=extract_prices(text)
         price=ps[0] if ps else None
     ks=extract_kms(text)
-    return price,(ks[0] if ks else None)
+    if not ks:
+        return price,None
+    # Quand un snippet contient plusieurs annonces, le premier kilométrage
+    # n'est pas forcément celui du prix retenu. Pour une recherche ciblée,
+    # rattacher le kilométrage au véhicule demandé en privilégiant la valeur
+    # la plus proche du kilométrage cible.
+    if target_km is not None:
+        chosen_km=min(ks,key=lambda k:abs(int(k)-int(target_km)))
+    else:
+        chosen_km=ks[0]
+    return price,chosen_km
 def extract_transmission(text):
     t=(text or "").lower()
     if re.search(r"\b(?:bo[iî]te\s*)?(?:auto(?:matique)?|bva|matic|9g[- ]tronic|8g[- ]tronic|e[- ]shift|comfort[- ]matic|robotis[ée]e)\b",t):
@@ -1070,6 +1080,20 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
         (not dica_gamme or finish_alias_match(text,dica_gamme,model)) and
         (not hp or hp in extract_hp(text))
     )
+    # Si toutes les preuves essentielles sont présentes dans le même
+    # résultat source, on le traite comme une annonce autonome, même si
+    # l'URL est une page de résultats.
+    if not source_exact:
+        source_prices=extract_prices(text)
+        source_kms=extract_kms(text)
+        source_exact=(
+            bool(price) and
+            any(int(k)==int(target_km) for k in source_kms) and
+            year in extract_years(text) and
+            model_match_score(text,model)>0 and
+            (not dica_gamme or finish_alias_match(text,dica_gamme,model)) and
+            (not hp or hp in extract_hp(text))
+        )
     associated_year=price_associated_year(r,price,year,target_km) if price else None
     if associated_year is not None and associated_year!=year and not source_exact:
         return None
