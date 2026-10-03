@@ -184,12 +184,23 @@ def extract_kms(text):
     return out
 def extract_prices(text):
     out=[]
-    for p in [r"(\d{2,3}(?:[ .]\d{3})+|\d{4,6})\s*€",r"€\s*(\d{2,3}(?:[ .]\d{3})+|\d{4,6})"]:
+    # Les sites d'annonces (notamment Leboncoin) utilisent souvent des espaces
+    # insécables/narrow no-break (U+00A0/U+202F) dans les prix : 59\u202f900 €.
+    # Ils doivent être traités comme des séparateurs de milliers, exactement
+    # comme un espace classique ou un point.
+    sep=r"[ .\\u00a0\\u202f]"
+    patterns=[
+        rf"(\\d{{2,3}}(?:{sep}\\d{{3}})+|\\d{{4,6}})\\s*€",
+        rf"€\\s*(\\d{{2,3}}(?:{sep}\\d{{3}})+|\\d{{4,6}})"
+    ]
+    for p in patterns:
         for m in re.finditer(p,text):
             try:
                 v=clean_num(m.group(1))
-                if 10000<=v<=150000 and v not in out: out.append(v)
-            except ValueError: pass
+                if 10000<=v<=150000 and v not in out:
+                    out.append(v)
+            except (TypeError,ValueError):
+                pass
     return out
 def fetch_detail_browser_html(url):
     """Récupère le HTML rendu par Chromium pour les pages chargées en JavaScript."""
