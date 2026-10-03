@@ -1385,6 +1385,27 @@ def cote():
     _seen_mc=set(); _mc=[]
     for x in sorted(manual_candidates,key=lambda x:(x["score"],-abs(x["km"]-km)),reverse=True):
         if x["url"] and x["url"] not in _seen_mc: _seen_mc.add(x["url"]); _mc.append(x)
+    # Si la recherche automatique a déjà produit des comparables, on les propose
+    # aussi à la sélection manuelle : aucune annonce trouvée ne doit disparaître
+    # simplement parce que son score de preuve est inférieur.
+    for row in rows:
+        url=str(row.get("url","") or "").strip()
+        if not url or any(x.get("url")==url for x in manual_candidates):
+            continue
+        manual_candidates.append({
+            "url":url,
+            "title":row.get("title",""),
+            "snippet":row.get("title",""),
+            "price":row.get("price"),
+            "km":row.get("km"),
+            "year":year,
+            "score":row.get("score",0),
+            "source_domain":row.get("source_domain","")
+        })
+    _seen_mc=set(); _mc=[]
+    for x in sorted(manual_candidates,key=lambda x:(x.get("score",0),-abs((x.get("km") or km)-km)),reverse=True):
+        if x.get("url") and x["url"] not in _seen_mc:
+            _seen_mc.add(x["url"]); _mc.append(x)
     manual_candidates=_mc[:40]
 
     # Le navigateur renvoie aussi les données des annonces cochées. Cela
