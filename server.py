@@ -1307,12 +1307,19 @@ def collect_lbc_search_results(brand, model, years, max_pages=3):
         if norm(model) not in nt and compact_model not in re.sub(r"\s+","",nt):
             continue
 
+        # Le finder LBC renvoie le prix sous forme de price_cents.
+        # Ne pas attendre une clé "price" : elle peut être absente de la réponse brute.
         price=None
-        p=ad.get("price")
+        p=ad.get("price_cents")
+        if p is None:
+            p=ad.get("price")
         if isinstance(p,list) and p:
             p=p[0]
         try:
-            price=clean_num(p)
+            if ad.get("price_cents") is not None:
+                price=round(float(ad.get("price_cents"))/100)
+            else:
+                price=clean_num(p)
         except Exception:
             price=None
         if price is None or not 10000<=price<=150000:
@@ -1327,6 +1334,24 @@ def collect_lbc_search_results(brand, model, years, max_pages=3):
                     break
                 except Exception:
                     pass
+        # Certains résultats utilisent value_label plutôt que value.
+        if km is None:
+            for a in ad.get("attributes",[]) or []:
+                if str(a.get("key","")).lower()=="mileage":
+                    for field in ("value_label","value","values_label","values"):
+                        vv=a.get(field)
+                        vals=vv if isinstance(vv,list) else [vv]
+                        for item in vals:
+                            try:
+                                km=clean_num(item)
+                                if 0<=km<=300000:
+                                    break
+                            except Exception:
+                                pass
+                        if km is not None:
+                            break
+                if km is not None:
+                    break
 
         yrs=extract_years(identity)
         for key in ("regdate","registration_year","year"):
@@ -1350,7 +1375,7 @@ def collect_lbc_search_results(brand, model, years, max_pages=3):
             "url":url,
             "snippet":body[:1000],
             "price":price,
-            "price_source":"lbc_finder_api",
+            "price_source":"lbc_finder_api_price_cents",
             "km":km,
             "year":valid[0],
             "all_years":yrs[:6],
