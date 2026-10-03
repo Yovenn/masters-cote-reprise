@@ -1013,9 +1013,20 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
     if dica_gamme:
         finish_ev=around(source_text,dica_gamme)
         if not finish_ev and finish_alias_match(source_text,dica_gamme,model):
-            finish_ev=around(source_text,re.sub(r"\bedition\b","",str(dica_gamme),flags=re.I).strip())
+            # Pour une écriture abrégée (« Graphite Premium 328 »), la chaîne
+            # DICA complète n'existe pas forcément telle quelle. La preuve doit
+            # néanmoins montrer les termes distinctifs de la finition.
+            raw_finish=unicodedata.normalize("NFKD",str(dica_gamme)).encode("ascii","ignore").decode("ascii").lower()
+            model_raw=unicodedata.normalize("NFKD",str(model or "")).encode("ascii","ignore").decode("ascii").lower()
+            finish_terms=[t for t in re.findall(r"[a-z0-9]+",raw_finish)
+                          if t not in set(re.findall(r"[a-z0-9]+",model_raw)) and t!="edition"]
+            finish_ev=around(source_text,finish_terms[0] if finish_terms else dica_gamme)
         if not finish_ev and detail.get("title") and finish_alias_match(str(detail.get("title")),dica_gamme,model):
-            finish_ev=around(str(detail.get("title")),re.sub(r"\\bedition\\b","",str(dica_gamme),flags=re.I).strip())
+            raw_finish=unicodedata.normalize("NFKD",str(dica_gamme)).encode("ascii","ignore").decode("ascii").lower()
+            model_raw=unicodedata.normalize("NFKD",str(model or "")).encode("ascii","ignore").decode("ascii").lower()
+            finish_terms=[t for t in re.findall(r"[a-z0-9]+",raw_finish)
+                          if t not in set(re.findall(r"[a-z0-9]+",model_raw)) and t!="edition"]
+            finish_ev=around(str(detail.get("title")),finish_terms[0] if finish_terms else dica_gamme)
     fields={
         "prix": bool(price_ev), "kilometrage": bool(km_ev), "annee": bool(year_ev),
         "modele": bool(model_ev), "finition": (not dica_gamme) or bool(finish_ev)
