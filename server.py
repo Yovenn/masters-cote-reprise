@@ -1505,6 +1505,27 @@ def collecte_diagnostic():
                 prices=extract_prices(t)
                 if prices:
                     return prices[0]
+
+                # Certains résultats LBC/SERPER retirent le symbole € et
+                # renvoient par exemple "... 42000 km ... 58 500 ...".
+                # Comme on est toujours sur EXACTEMENT la même URL, on peut
+                # récupérer un nombre de prix en excluant explicitement
+                # kilométrage et années de cette même annonce.
+                nums=re.findall(r"(?<!\d)(\d{2,3}(?:[ .\u00a0\u202f]\d{3})+|\d{5,6})(?!\d)",t)
+                forbidden=set()
+                if row.get("km") is not None:
+                    forbidden.add(int(row["km"]))
+                forbidden.update(extract_years(t))
+                plain=[]
+                for n in nums:
+                    try:
+                        v=clean_num(n)
+                    except Exception:
+                        continue
+                    if 10000<=v<=150000 and v not in forbidden and v not in plain:
+                        plain.append(v)
+                if len(plain)==1:
+                    return plain[0]
             return None
 
         with ThreadPoolExecutor(max_workers=min(5,len(missing_price))) as pool:
