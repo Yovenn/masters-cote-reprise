@@ -1272,15 +1272,37 @@ def collecte_diagnostic():
         if not url or url in seen or not is_direct_listing_url(url):
             continue
         seen.add(url)
-        txt=f"{r.get('title','')} {r.get('snippet','')}"
+        title_raw=str(r.get("title","") or "")
+        txt=f"{title_raw} {r.get('snippet','')}"
+        title_norm=norm(title_raw)
+        model_norm=norm(model)
+
+        # Le résultat Serper peut être une fiche individuelle mais totalement
+        # hors sujet. Le modèle doit donc être présent dans LE TITRE de la fiche,
+        # jamais seulement dans le snippet.
+        model_tokens=re.findall(r"[a-z0-9]+", model_norm)
+        title_tokens=re.findall(r"[a-z0-9]+", title_norm)
+        if model_norm and model_norm not in title_norm:
+            # Tolère uniquement les variantes d'espacement du modèle.
+            compact_model=re.sub(r"\s+","",model_norm)
+            compact_title=re.sub(r"\s+","",title_norm)
+            if compact_model not in compact_title:
+                continue
+
+        # Les pages de catalogue déguisées en fiches sont explicitement écartées.
+        bad_title_markers=("toutes les annonces","annonces camping-car","petite annonce",
+                           "cote challenger","cote camping","page ")
+        if any(m in title_norm for m in bad_title_markers):
+            continue
+
         raw_prices=extract_prices(txt)
         raw_kms=extract_kms(txt)
         raw_years=extract_years(txt)
 
         detail=fetch_detail_price_km(
             {"link":url},
-            target_year=None,
-            target_model=None,
+            target_year=year,
+            target_model=model,
             target_km=None,
             target_gamme=None
         ) or {}
