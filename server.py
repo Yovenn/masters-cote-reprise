@@ -278,7 +278,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
     body=tree.css_first("body")
     body_text=node_text(body) if body else ""
     page_card_count=len(re.findall(
-        r"\bchallenger\s+(?:graphite\s+|start\s+|break\s+|etape\s+|étape\s+|premium\s+)?328\b",
+        r"\bchallenger\s+(?:graphite\s+|start\s+|break\s+|etape\s+|étape\s+|premium\s+)?328\\b",
         body_text,re.I
     ))
     probable_catalogue=any(m in url_low for m in catalogue_markers) or page_card_count>3
@@ -531,17 +531,7 @@ def parse_price_km(r, target_year=None, target_km=None):
         ps=extract_prices(text)
         price=ps[0] if ps else None
     ks=extract_kms(text)
-    if not ks:
-        return price,None
-    # Quand un snippet contient plusieurs annonces, le premier kilométrage
-    # n'est pas forcément celui du prix retenu. Pour une recherche ciblée,
-    # rattacher le kilométrage au véhicule demandé en privilégiant la valeur
-    # la plus proche du kilométrage cible.
-    if target_km is not None:
-        chosen_km=min(ks,key=lambda k:abs(int(k)-int(target_km)))
-    else:
-        chosen_km=ks[0]
-    return price,chosen_km
+    return price,(ks[0] if ks else None)
 def extract_transmission(text):
     t=(text or "").lower()
     if re.search(r"\b(?:bo[iî]te\s*)?(?:auto(?:matique)?|bva|matic|9g[- ]tronic|8g[- ]tronic|e[- ]shift|comfort[- ]matic|robotis[ée]e)\b",t):
@@ -698,7 +688,7 @@ def model_match_score(text,model):
     words=re.findall(r"[a-z0-9]+",compact_text)
     wanted=re.findall(r"[a-z0-9]+",norm(model))
     if model.isdigit():
-        return 48 if re.search(rf"(?<!\d){re.escape(model)}(?!\d)",raw) else 0
+        return 48 if re.search(rf"(?<!\\d){re.escape(model)}(?!\\d)",raw) else 0
     if compact in compact_text:
         return 48
     if len(wanted)>1 and all(w in words for w in wanted):
@@ -706,7 +696,9 @@ def model_match_score(text,model):
     return 0
 
 def finish_alias_match(text, requested_gamme, model=""):
-    """Reconnaît les abréviations d'une finition, sans accepter une autre finition."""
+    """Reconnaît les abréviations de finition utilisées par les sites d'annonces.
+    Exemple : GRAPHITE EDITION PREMIUM – 328 -> « Graphite Premium 328 ».
+    """
     if not requested_gamme:
         return False
     raw = unicodedata.normalize("NFKD", str(requested_gamme)).encode("ascii","ignore").decode("ascii").lower()
@@ -717,26 +709,6 @@ def finish_alias_match(text, requested_gamme, model=""):
     if not distinctive:
         return False
     tn = norm(text)
-
-    # Si une autre finition DICA du même modèle/année est explicitement citée,
-    # elle est prioritaire sur l'alias.
-    requested_key=norm(requested_gamme)
-    requested_finish_tokens=set(distinctive)
-    for other in DICA:
-        og=str(other.get("gamme","") or "")
-        if not og or norm(og)==requested_key:
-            continue
-        otokens=[t for t in re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", og).encode("ascii","ignore").decode("ascii").lower())
-                 if t not in model_tokens and t != "edition"]
-        # On ne rejette que si l'autre finition apporte un terme
-        # réellement distinctif absent de la finition demandée.
-        # Exemple : « Graphite » seul est commun aux deux gammes et ne doit
-        # pas invalider « Graphite Premium » ; « Ultimate », lui, est distinct
-        # et doit provoquer le rejet.
-        other_distinct=set(otokens)-requested_finish_tokens
-        if other_distinct and all(norm(t) in tn for t in otokens):
-            return False
-
     return all(norm(t) in tn for t in distinctive)
 
 
@@ -824,18 +796,7 @@ def is_unavailable(r):
     return any(w in text for w in ("vendu","déjà vendu","deja vendu","indisponible","archivé","archive"))
 def is_aggregation(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower()
-    url=str(r.get('link','') or '').lower()
-    url_markers=("/recherche","/search","/listing","/annonces","?q=","&q=","resultats","results","/stock","/l/")
-    return any(w in text for w in AGGREGATOR_WORDS) or any(m in url for m in url_markers)
-
-def aggregation_title_is_same_vehicle(r, model, dica_gamme=None):
-    """Sur une page catalogue, le titre doit lui-même identifier le véhicule."""
-    title=str(r.get("title","") or "")
-    if model and model_match_score(title,model)<=0:
-        return False
-    if dica_gamme:
-        return finish_alias_match(title,dica_gamme,model)
-    return True
+    return any(w in text for w in AGGREGATOR_WORDS)
 def experimental_brand_value(results, brand, year, category, requested_gamme=None, requested_model=None):
     """Coefficient marque strict : même année/catégorie, annonces reliées à une référence DICA, médiane et filtrage des ratios atypiques."""
     candidates=[]
@@ -997,7 +958,7 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
     text_price=detail_text or source_text
     def fragment_price(text, value):
         if value is None: return None
-        pat=r"(?:\d{2,3}(?:[ .]\d{3})+|\d{4,6})\s*€|€\s*(?:\d{2,3}(?:[ .]\d{3})+|\d{4,6})"
+        pat=r"(?:\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})\\s*€|€\\s*(?:\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})"
         for m in re.finditer(pat,text or ""):
             try:
                 if clean_num(re.sub(r"[^0-9]","",m.group()))==int(value): return m.group(0)
@@ -1005,21 +966,21 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
         return None
     def fragment_km(text, value):
         if value is None: return None
-        for m in re.finditer(r"\b(\d{1,3}(?:[ .]\d{3})|\d{3,6})\s*km\b",text or "",re.I):
+        for m in re.finditer(r"\\b(\\d{1,3}(?:[ .]\\d{3})|\\d{3,6})\\s*km\\b",text or "",re.I):
             try:
                 if clean_num(m.group(1))==int(value): return m.group(0)
             except Exception: pass
         return None
     def fragment_year(text, value):
         if value is None: return None
-        m=re.search(rf"\b{int(value)}\b",text or "")
+        m=re.search(rf"\\b{int(value)}\\b",text or "")
         return m.group(0) if m else None
     def around(text, needle, radius=90):
         if not needle: return None
         pos=(text or "").lower().find(needle.lower())
         if pos<0: return None
         a=max(0,pos-radius); b=min(len(text),pos+len(needle)+radius)
-        return re.sub(r"\s+"," ",(text or "")[a:b]).strip()
+        return re.sub(r"\\s+"," ",(text or "")[a:b]).strip()
     price,rkm=parse_price_km(r,year,target_km)
     price_ev=fragment_price(text_price,price) or fragment_price(source_text,price)
     km_ev=fragment_km(text_price,rkm) or fragment_km(source_text,rkm)
@@ -1029,20 +990,9 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
     if dica_gamme:
         finish_ev=around(source_text,dica_gamme)
         if not finish_ev and finish_alias_match(source_text,dica_gamme,model):
-            # Pour une écriture abrégée (« Graphite Premium 328 »), la chaîne
-            # DICA complète n'existe pas forcément telle quelle. La preuve doit
-            # néanmoins montrer les termes distinctifs de la finition.
-            raw_finish=unicodedata.normalize("NFKD",str(dica_gamme)).encode("ascii","ignore").decode("ascii").lower()
-            model_raw=unicodedata.normalize("NFKD",str(model or "")).encode("ascii","ignore").decode("ascii").lower()
-            finish_terms=[t for t in re.findall(r"[a-z0-9]+",raw_finish)
-                          if t not in set(re.findall(r"[a-z0-9]+",model_raw)) and t!="edition"]
-            finish_ev=around(source_text,finish_terms[0] if finish_terms else dica_gamme)
+            finish_ev=around(source_text,re.sub(r"\\bedition\\b","",str(dica_gamme),flags=re.I).strip())
         if not finish_ev and detail.get("title") and finish_alias_match(str(detail.get("title")),dica_gamme,model):
-            raw_finish=unicodedata.normalize("NFKD",str(dica_gamme)).encode("ascii","ignore").decode("ascii").lower()
-            model_raw=unicodedata.normalize("NFKD",str(model or "")).encode("ascii","ignore").decode("ascii").lower()
-            finish_terms=[t for t in re.findall(r"[a-z0-9]+",raw_finish)
-                          if t not in set(re.findall(r"[a-z0-9]+",model_raw)) and t!="edition"]
-            finish_ev=around(str(detail.get("title")),finish_terms[0] if finish_terms else dica_gamme)
+            finish_ev=around(str(detail.get("title")),re.sub(r"\\bedition\\b","",str(dica_gamme),flags=re.I).strip())
     fields={
         "prix": bool(price_ev), "kilometrage": bool(km_ev), "annee": bool(year_ev),
         "modele": bool(model_ev), "finition": (not dica_gamme) or bool(finish_ev)
@@ -1068,46 +1018,15 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     # plus.
     if title_years and year not in title_years:
         return None
-    # Preuve forte : quand prix + km + année + modèle + finition sont tous
-    # présents dans le même résultat Serper, cette ligne représente une annonce
-    # cohérente. On ne doit pas la rejeter à cause d'un mauvais rattachement
-    # d'année dans un snippet contenant aussi des éléments de navigation.
-    source_exact = (
-        bool(price) and
-        (rkm is not None and int(rkm) == int(target_km)) and
-        (year in extract_years(text)) and
-        model_match_score(text,model) > 0 and
-        (not dica_gamme or finish_alias_match(text,dica_gamme,model)) and
-        (not hp or hp in extract_hp(text))
-    )
-    # Si toutes les preuves essentielles sont présentes dans le même
-    # résultat source, on le traite comme une annonce autonome, même si
-    # l'URL est une page de résultats.
-    if not source_exact:
-        source_prices=extract_prices(text)
-        source_kms=extract_kms(text)
-        source_exact=(
-            bool(price) and
-            any(int(k)==int(target_km) for k in source_kms) and
-            year in extract_years(text) and
-            model_match_score(text,model)>0 and
-            (not dica_gamme or finish_alias_match(text,dica_gamme,model)) and
-            (not hp or hp in extract_hp(text))
-        )
     associated_year=price_associated_year(r,price,year,target_km) if price else None
-    if associated_year is not None and associated_year!=year and not source_exact:
+    if associated_year is not None and associated_year!=year:
         return None
-    if associated_year is None and year not in snippet_years and not source_exact:
-        # Une fiche détail vérifiée peut également fournir l'année.
-        detail_year=(r.get("_detail") or {}).get("year")
-        if detail_year!=year:
-            return None
-    if is_aggregation(r) and not aggregation_title_is_same_vehicle(r,model,dica_gamme):
+    if associated_year is None and year not in snippet_years:
         return None
     score=score_result(r,brand,model,year,target_km,hp,transmission,dica_gamme,category)
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
     if is_aggregation(r): score-=10
-    if score<65 and not source_exact: return None
+    if score<65: return None
     adjusted=price; km_adjustment=0
     if rkm is not None:
         if category=="poids_lourd":
@@ -1130,13 +1049,6 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     evidence=evidence_for_result(r,brand,model,year,target_km,dica_gamme)
     fields={k:bool(v.get("ok")) for k,v in evidence.items() if isinstance(v,dict) and "ok" in v}
     complete=sum(1 for v in fields.values() if v)
-    core_ok=all(fields.get(k,False) for k in ("prix","kilometrage","modele","finition"))
-    # Une page de résultats peut ne pas répéter l'année dans son extrait alors
-    # que prix + km + modèle + finition appartiennent bien au même véhicule.
-    # On accepte alors la ligne avec une fiabilité réduite, sans jamais accepter
-    # une année explicitement différente.
-    if is_aggregation(r) and not core_ok:
-        return None
     if detail:
         provenance="fiche_detail_verifiee"
     elif complete>=5:
@@ -1412,7 +1324,7 @@ def cote():
         if detail_year is not None and detail_year!=year:
             return None
         if model and norm(model) not in norm(detail_title):
-            compact_model=norm(re.sub(r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])"," ",model))
+            compact_model=norm(re.sub(r"(?<=[A-Za-z])(?=\\d)|(?<=\\d)(?=[A-Za-z])"," ",model))
             if compact_model not in norm(detail_title):
                 return None
 
@@ -1452,20 +1364,68 @@ def cote():
         row=comparable_row(r,brand,model,year,km,hp,transmission,dica_gamme,category)
         if not row: continue
         (context if row["km"] is None else rows).append(row)
+    rows.sort(key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True); context.sort(key=lambda x:x["score"],reverse=True)
 
-    # Une même annonce peut remonter via plusieurs URL (recherche + fiche détail).
-    unique_rows=[]
-    seen_vehicle_keys=set()
-    for row in sorted(rows,key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True):
-        key=(norm(row.get("model","")),norm(row.get("gamme","") or dica_gamme or ""),
-             int(row.get("price") or 0),int(row.get("km") or 0),int(row.get("year") or year))
-        if key in seen_vehicle_keys:
-            continue
-        seen_vehicle_keys.add(key)
-        unique_rows.append(row)
-    rows=unique_rows
-    rows.sort(key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True)
-    context.sort(key=lambda x:x["score"],reverse=True)
+    # Annonces proposées à la sélection manuelle.
+    manual_candidates=[]
+    for r in dedup.values():
+        price,rkm=parse_price_km(r,year,km)
+        txt=f"{r.get('title','')} {r.get('snippet','')}"
+        if not price or rkm is None or is_new(r) or is_unavailable(r): continue
+        if model_match_score(txt,model)<=0: continue
+        yrs=extract_years(txt)
+        if yrs and year not in yrs: continue
+        s=score_result(r,brand,model,year,km,hp,transmission,dica_gamme,category)
+        if s<25: continue
+        manual_candidates.append({"url":r.get("link"),"title":r.get("title",""),"snippet":r.get("snippet",""),
+          "price":price,"km":rkm,"year":year if year in yrs else (yrs[0] if yrs else None),"score":round(s),
+          "source_domain":re.sub(r"^www\.","",requests.utils.urlparse(str(r.get("link",""))).netloc.lower())})
+    _seen_mc=set(); _mc=[]
+    for x in sorted(manual_candidates,key=lambda x:(x["score"],-abs(x["km"]-km)),reverse=True):
+        if x["url"] and x["url"] not in _seen_mc: _seen_mc.add(x["url"]); _mc.append(x)
+    manual_candidates=_mc[:40]
+
+    selected_urls={str(u).strip() for u in (data.get("selected_urls") or []) if str(u).strip()}
+    if selected_urls:
+        selected_rows=[]
+        for r in dedup.values():
+            if str(r.get("link","")).strip() not in selected_urls: continue
+            price,rkm=parse_price_km(r,year,km)
+            if not price or rkm is None or is_new(r) or is_unavailable(r): continue
+            if category=="poids_lourd":
+                ref_km,over_rate,under_rate=poids_lourd_km_rules(f"{r.get('title','')} {r.get('snippet','')}")
+                delta=rkm-km; km_adjustment=round(delta*(over_rate if delta>0 else under_rate)) if ref_km is not None else 0
+            else:
+                km_adjustment=round((rkm-km)*DICA_OVER_KM_RATE) if rkm>km else (-round((km-rkm)*DICA_UNDER_KM_RATE) if rkm<km else 0)
+            evidence=evidence_for_result(r,brand,model,year,km,dica_gamme)
+            fields={k:bool(v.get("ok")) for k,v in evidence.items() if isinstance(v,dict) and "ok" in v}
+            selected_rows.append({"title":r.get("title"),"url":r.get("link"),"snippet":r.get("snippet"),"price":price,"km":rkm,
+              "adjusted":round(price+km_adjustment),"km_adjustment":km_adjustment,
+              "score":round(score_result(r,brand,model,year,km,hp,transmission,dica_gamme,category)),
+              "source":r.get("source",""),"source_domain":re.sub(r"^www\.","",requests.utils.urlparse(str(r.get("link",""))).netloc.lower()),
+              "transmission":extract_transmission(f"{r.get('title','')} {r.get('snippet','')}"),
+              "reliability":"C","provenance":"selection_manuelle","manual_selection":True,
+              "fields_verified":[k for k,v in fields.items() if v],"complete_fields":sum(1 for v in fields.values() if v),"evidence":evidence})
+        seen_selected=set(); selected_unique=[]
+        for row in selected_rows:
+            if row["url"] not in seen_selected: seen_selected.add(row["url"]); selected_unique.append(row)
+        selected_rows=selected_unique; values=[x["adjusted"] for x in selected_rows]
+        if values:
+            manual_market=round(statistics.median(values)/100)*100
+            return jsonify({"status":"ok","manual_selection":True,"provisional":len(values)<3,"category":category,"ptac":ptac,
+              "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),
+              "dica_gamme":dica_gamme,"comparables":selected_rows,"context":[],"manual_candidates":manual_candidates,
+              "selected_urls":[x["url"] for x in selected_rows],"market":manual_market,"market_low":round(min(values)/100)*100,"market_high":round(max(values)/100)*100,
+              "search_time":datetime.now().astimezone().isoformat(timespec="minutes"),"fiscal_cv":cv,"horsepower":hp,"transmission":transmission,
+              "transmission_fallback":False,"transmission_counts":{},"transmission_gap":None,"trade":max(0,manual_market-MASTERS_FRAIS),
+              "masters_frais":MASTERS_FRAIS,"confidence":"Sélection manuelle","count":len(values),"excluded_count":0,"dica":dica,"dica_ambiguous":len(dica)>1,
+              "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if (not dica and category!="poids_lourd") else [],
+              "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":0,"atypiques":0,"fiabilite_A":0,"fiabilite_B":0,
+                         "sources":sorted({x.get("source_domain") for x in selected_rows if x.get("source_domain")})},
+              "experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":(round(manual_market-dica[0]["revente_corrigee"]) if len(dica)==1 else None),
+              "experimental_professional_value":(round(dica[0]["reprise_corrigee"]) if len(dica)==1 else None),
+              "message":"Cote calculée à partir des annonces sélectionnées manuellement."})
+
     matching_rows=[x for x in rows if x.get("transmission")==transmission] if transmission else rows
     transmission_fallback=bool(transmission and len(matching_rows)<3)
     primary=(matching_rows if not transmission_fallback else rows)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
@@ -1475,53 +1435,17 @@ def cote():
     experimental_brand=None
     if len(values)<3:
         experimental_professional_value = dica[0]["reprise_corrigee"] if len(dica)==1 else None
-        # Une annonce qualifiée suffit maintenant à produire un résultat
-        # provisoire. Le moteur ne fabrique jamais une valeur à partir d'une
-        # annonce non vérifiée : seules les lignes déjà retenues ci-dessus
-        # peuvent entrer dans ce calcul.
-        if values:
-            provisional_market=round(statistics.median(values)/100)*100
-            provisional_low=round(min(values)/100)*100
-            provisional_high=round(max(values)/100)*100
-            provisional_confidence="Faible" if len(values)>=2 else "Très faible"
-            provisional_gap=(round(provisional_market-dica[0]["revente_corrigee"])
-                             if len(dica)==1 else None)
-            return jsonify({
-                "status":"ok","provisional":True,"category":category,"ptac":ptac,
-                "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),
-                "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],"market":provisional_market,
-                "market_low":provisional_low,"market_high":provisional_high,
-                "search_time":datetime.now().astimezone().isoformat(timespec="minutes"),
-                "fiscal_cv":cv,"horsepower":hp,"transmission":transmission,"transmission_fallback":transmission_fallback,
-                "transmission_counts":{"Automatique":0,"Manuelle":0,"Inconnue":len(primary)},
-                "transmission_gap":None,"trade":max(0,provisional_market-MASTERS_FRAIS),
-                "masters_frais":MASTERS_FRAIS,"confidence":provisional_confidence,"count":len(values),
-                "excluded_count":0,"dica":dica,"dica_ambiguous":len(dica)>1,
-                "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if (not dica and category!="poids_lourd") else [],
-                "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,
-                           "transmission_fallback":transmission_fallback,
-                           "fiabilite_A":sum(1 for x in primary if x.get("reliability")=="A"),
-                           "fiabilite_B":sum(1 for x in primary if x.get("reliability")=="B"),
-                           "sources":sorted({x.get("source_domain") for x in primary if x.get("source_domain")})},
-                "experimental_recalage_factor":DICA_RECALAGE_FACTOR,
-                "experimental_market_gap":provisional_gap,
-                "experimental_professional_value":experimental_professional_value,
-                "message":"Résultat provisoire : au moins une annonce qualifiée a été vérifiée. La valeur sera consolidée lorsque davantage de comparables fiables seront trouvés."
-            })
         return jsonify({
             "status":"insufficient","category":category,"ptac":ptac,
             "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),
-            "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],"dica":dica,
+            "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],"manual_candidates":manual_candidates,"selected_urls":[],"dica":dica,
             "dica_ambiguous":len(dica)>1,
             "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if (not dica and category!="poids_lourd") else [],
-            "experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":None,
+            "experimental_recalage_factor":DICA_RECALAGE_FACTOR,
+            "experimental_market_gap":None,
             "experimental_professional_value":experimental_professional_value,
-            "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,
-                       "transmission_fallback":transmission_fallback,
-                       "fiabilite_A":sum(1 for x in primary if x.get("reliability")=="A"),
-                       "fiabilite_B":sum(1 for x in primary if x.get("reliability")=="B"),
-                       "sources":sorted({x.get("source_domain") for x in primary if x.get("source_domain")})},
-            "message":"Marché insuffisant : aucune annonce qualifiée n'a été retenue. Aucune valeur de marché n'est fabriquée."
+            "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback,"fiabilite_A":sum(1 for x in primary if x.get("reliability")=="A"),"fiabilite_B":sum(1 for x in primary if x.get("reliability")=="B"),"sources":sorted({x.get("source_domain") for x in primary if x.get("source_domain")})},
+            "message":"Marché insuffisant : le moteur n'a pas encore trouvé 3 comparables qualifiés. Aucune recherche secondaire n'est lancée."
         })
     med=statistics.median(values)
     filtered_values=list(values)
