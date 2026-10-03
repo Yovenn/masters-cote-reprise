@@ -1431,6 +1431,21 @@ def collecte_diagnostic():
                                 return pv,"meta_direct"
                         except Exception:
                             pass
+
+                # 3) Etat applicatif JSON/Next.js de CETTE fiche.
+                # On accepte uniquement une valeur portée par une clé price/
+                # salePrice et après validation du modèle + de l'année de la fiche.
+                for script in tree.css("script"):
+                    raw=script.text() or ""
+                    if "price" not in raw.lower():
+                        continue
+                    for m in re.finditer(r'(?:"(?:price|salePrice)"|(?:price|salePrice))\\s*[:=]\\s*["\\']?(\\d{4,6})(?:[.,]\\d+)?["\\']?', raw, re.I):
+                        try:
+                            pv=int(m.group(1))
+                            if 10000<=pv<=150000:
+                                return pv,"next_data_direct"
+                        except Exception:
+                            pass
             except Exception:
                 return None
             return None
@@ -1471,10 +1486,20 @@ def collecte_diagnostic():
                 items=resp.json().get("organic",[])
             except requests.RequestException:
                 return None
-            target_url=str(row.get("url","") or "").rstrip("/")
+            from urllib.parse import urlparse
+            target_parsed=urlparse(str(row.get("url","") or "").rstrip("/"))
+            target_path=target_parsed.path.rstrip("/")
             for item in items:
                 link=str(item.get("link","") or "").rstrip("/")
-                if not link or link!=target_url:
+                if not link:
+                    continue
+                parsed=urlparse(link)
+                same_listing=(
+                    parsed.netloc.lower().replace("www.","")=="leboncoin.fr"
+                    and target_parsed.netloc.lower().replace("www.","")=="leboncoin.fr"
+                    and parsed.path.rstrip("/")==target_path
+                )
+                if not same_listing:
                     continue
                 t=f"{item.get('title','')} {item.get('snippet','')}"
                 prices=extract_prices(t)
