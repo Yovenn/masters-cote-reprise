@@ -188,7 +188,7 @@ def extract_prices(text):
     # insécables/narrow no-break (U+00A0/U+202F) dans les prix : 59\u202f900 €.
     # Ils doivent être traités comme des séparateurs de milliers, exactement
     # comme un espace classique ou un point.
-    sep=r"[ .\\u00a0\\u202f]"
+    sep=r"[ .\u00a0\u202f]"
     patterns=[
         rf"(\\d{{2,3}}(?:{sep}\\d{{3}})+|\\d{{4,6}})\\s*€",
         rf"€\\s*(\\d{{2,3}}(?:{sep}\\d{{3}})+|\\d{{4,6}})"
