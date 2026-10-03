@@ -1375,8 +1375,10 @@ def cote():
         if model_match_score(txt,model)<=0: continue
         yrs=extract_years(txt)
         if yrs and year not in yrs: continue
+        # Pour la sélection manuelle, on ne demande PAS la finition exacte
+        # ni un score élevé : l'utilisateur doit justement pouvoir voir les
+        # variantes proches et décider lui-même de la correspondance.
         s=score_result(r,brand,model,year,km,hp,transmission,dica_gamme,category)
-        if s<25: continue
         manual_candidates.append({"url":r.get("link"),"title":r.get("title",""),"snippet":r.get("snippet",""),
           "price":price,"km":rkm,"year":year if year in yrs else (yrs[0] if yrs else None),"score":round(s),
           "source_domain":re.sub(r"^www\.","",requests.utils.urlparse(str(r.get("link",""))).netloc.lower())})
