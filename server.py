@@ -251,6 +251,23 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
             return None
         html=resp.text
         browser_url=resp.url
+
+        # Leboncoin peut répondre 200 en redirigeant une annonce supprimée
+        # vers une page générique. Cette page ne doit jamais être considérée
+        # comme la fiche d'origine.
+        try:
+            from urllib.parse import urlparse
+            orig=urlparse(url)
+            final=urlparse(browser_url)
+            if "leboncoin.fr" in orig.netloc.lower():
+                if "leboncoin.fr" not in final.netloc.lower():
+                    return None
+                if final.path.rstrip("/") != orig.path.rstrip("/"):
+                    return None
+                if "/ad/" not in final.path.lower():
+                    return None
+        except Exception:
+            return None
     except requests.RequestException:
         return None
 
@@ -1376,202 +1393,10 @@ def collecte_diagnostic():
             "raw_km":raw_kms[0] if raw_kms else None
         })
 
-    # Dernier niveau LBC : lecture directe de la fiche elle-même.
-    # Certaines annonces exposent le prix dans JSON-LD/meta alors que le
-    # résultat Serper et le parseur de carte ne l'affichent pas. On ne lit
-    # jamais une autre URL : le prix est accepté uniquement depuis cette fiche.
-    missing_direct=[x for x in rows if x.get("source_domain")=="leboncoin.fr" and x.get("price") is None]
-    if missing_direct:
-        def recover_lbc_page(row):
-            url=str(row.get("url","") or "").strip()
-            if not url:
-                return None
-            try:
-                resp=requests.get(url,headers={"User-Agent":"Mozilla/5.0 (compatible; MastersCoteReprise/1.2)"},timeout=8,allow_redirects=True)
-                if resp.status_code!=200 or not resp.text:
-                    return None
-                html=resp.text
-                if not SELECTOLAX_AVAILABLE:
-                    return None
-                tree=LexborHTMLParser(html)
-                title_node=tree.css_first("title")
-                page_title=re.sub(r"\\s+"," ",title_node.text(separator=" ",strip=True)).strip() if title_node else ""
-                # Une fiche supprimée peut répondre 200 avec une page générique.
-                # Elle ne doit jamais être validée à partir du seul ancien titre
-                # conservé par Serper.
-                actual_text=norm(" ".join(tree.text(separator=" ",strip=True).split()))
-                unavailable=("annonce indisponible" in actual_text or
-                             "annonce supprimée" in actual_text or
-                             "cette annonce n'est plus disponible" in actual_text or
-                             "cette annonce est indisponible" in actual_text)
-                if unavailable:
-                    return None
-                combined_title=norm(page_title)
-                if model_norm and model_norm not in combined_title:
-                    compact_model=re.sub(r"\\s+","",model_norm)
-                    if compact_model not in re.sub(r"\\s+","",combined_title):
-                        return None
-                page_years=extract_years(page_title)
-                if year not in page_years:
-                    return None
-
-                # 1) JSON-LD Offer.price
-                for node in tree.css('script[type="application/ld+json"]'):
-                    try:
-                        data=json.loads(unescape(node.text()))
-                    except Exception:
-                        continue
-                    stack=data if isinstance(data,list) else [data]
-                    while stack:
-                        obj=stack.pop()
-                        if isinstance(obj,list):
-                            stack.extend(obj); continue
-                        if not isinstance(obj,dict):
-                            continue
-                        offers=obj.get("offers")
-                        if isinstance(offers,dict):
-                            offers=[offers]
-                        if isinstance(offers,list):
-                            for offer in offers:
-                                if not isinstance(offer,dict):
-                                    continue
-                                p=offer.get("price")
-                                if p is None:
-                                    continue
-                                try:
-                                    pv=clean_num(p)
-                                except Exception:
-                                    continue
-                                if 10000<=pv<=150000:
-                                    return pv,"jsonld_direct"
-                        stack.extend(v for v in obj.values() if isinstance(v,(dict,list)))
-
-                # 2) Meta produit : même fiche, même URL.
-                for sel in ('meta[property="product:price:amount"]','meta[itemprop="price"]','meta[name="price"]'):
-                    node=tree.css_first(sel)
-                    if node:
-                        raw=str(node.attributes.get("content","") or node.attributes.get("value","") or "").strip()
-                        try:
-                            pv=clean_num(raw)
-                            if 10000<=pv<=150000:
-                                return pv,"meta_direct"
-                        except Exception:
-                            pass
-
-                # 3) Etat applicatif JSON/Next.js de CETTE fiche.
-                # On accepte uniquement une valeur portée par une clé price/
-                # salePrice et après validation du modèle + de l'année de la fiche.
-                for script in tree.css("script"):
-                    raw=script.text() or ""
-                    if "price" not in raw.lower():
-                        continue
-                    for m in re.finditer(r"""(?:"(?:price|salePrice)"|(?:price|salePrice))\s*[:=]\s*["']?(\d{4,6})(?:[.,]\d+)?["']?""", raw, re.I):
-                        try:
-                            pv=int(m.group(1))
-                            if 10000<=pv<=150000:
-                                return pv,"next_data_direct"
-                        except Exception:
-                            pass
-            except Exception:
-                return None
-            return None
-
-        with ThreadPoolExecutor(max_workers=min(5,len(missing_direct))) as pool:
-            futs={pool.submit(recover_lbc_page,x):x for x in missing_direct}
-            for fut in as_completed(futs):
-                row=futs[fut]
-                try:
-                    recovered=fut.result()
-                except Exception:
-                    recovered=None
-                if recovered:
-                    row["price"]=recovered[0]
-                    row["price_source"]=recovered[1]
-                    row["price_recovered"]=True
-
-    # Leboncoin charge souvent le prix en JavaScript : le HTML de la fiche
-    # est alors accessible mais ne contient pas le prix. On fait une seconde
-    # recherche Serper ciblée sur LE TITRE + LE KM et on n'accepte le prix que
-    # si Serper renvoie exactement la même URL de fiche.
-    missing_price=[x for x in rows if x.get("source_domain")=="leboncoin.fr" and x.get("price") is None]
-    if missing_price:
-        def recover_lbc(row):
-            title=str(row.get("title","") or "").strip()
-            km=row.get("km")
-            if not title:
-                return None
-            # Recherche ciblée sur le titre de CETTE annonce. Le km est ajouté
-            # lorsqu'il est connu, mais son absence ne doit pas empêcher la
-            # récupération du prix.
-            q=f'site:leboncoin.fr/ad/ "{title}"'
-            if km is not None:
-                q += f' "{int(km)} km"'
-            q += " prix"
-            try:
-                resp=requests.post(
-                    "https://google.serper.dev/search",
-                    headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},
-                    json={"q":q,"gl":"fr","hl":"fr","num":10},
-                    timeout=10
-                )
-                resp.raise_for_status()
-                items=resp.json().get("organic",[])
-            except requests.RequestException:
-                return None
-            from urllib.parse import urlparse
-            target_parsed=urlparse(str(row.get("url","") or "").rstrip("/"))
-            target_path=target_parsed.path.rstrip("/")
-            for item in items:
-                link=str(item.get("link","") or "").rstrip("/")
-                if not link:
-                    continue
-                parsed=urlparse(link)
-                same_listing=(
-                    parsed.netloc.lower().replace("www.","")=="leboncoin.fr"
-                    and target_parsed.netloc.lower().replace("www.","")=="leboncoin.fr"
-                    and parsed.path.rstrip("/")==target_path
-                )
-                if not same_listing:
-                    continue
-                t=f"{item.get('title','')} {item.get('snippet','')}"
-                prices=extract_prices(t)
-                if prices:
-                    return prices[0]
-
-                # Certains résultats LBC/SERPER retirent le symbole € et
-                # renvoient par exemple "... 42000 km ... 58 500 ...".
-                # Comme on est toujours sur EXACTEMENT la même URL, on peut
-                # récupérer un nombre de prix en excluant explicitement
-                # kilométrage et années de cette même annonce.
-                nums=re.findall(r"(?<!\d)(\d{2,3}(?:[ .\u00a0\u202f]\d{3})+|\d{5,6})(?!\d)",t)
-                forbidden=set()
-                if row.get("km") is not None:
-                    forbidden.add(int(row["km"]))
-                forbidden.update(extract_years(t))
-                plain=[]
-                for n in nums:
-                    try:
-                        v=clean_num(n)
-                    except Exception:
-                        continue
-                    if 10000<=v<=150000 and v not in forbidden and v not in plain:
-                        plain.append(v)
-                if len(plain)==1:
-                    return plain[0]
-            return None
-
-        with ThreadPoolExecutor(max_workers=min(5,len(missing_price))) as pool:
-            futs={pool.submit(recover_lbc,x):x for x in missing_price}
-            for fut in as_completed(futs):
-                row=futs[fut]
-                try:
-                    recovered=fut.result()
-                except Exception:
-                    recovered=None
-                if recovered is not None:
-                    row["price"]=recovered
-                    row["price_source"]="serper_same_url"
-                    row["price_recovered"]=True
+    # IMPORTANT : pour Leboncoin, aucune récupération secondaire via
+    # Serper n'est autorisée. Les résultats indexés peuvent être obsolètes
+    # (annonce supprimée ou ancien prix). Le prix LBC doit provenir uniquement
+    # de la fiche actuelle traitée par fetch_detail_price_km().
 
     def site_key(domain):
         d=domain.lower()
