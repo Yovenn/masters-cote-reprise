@@ -857,9 +857,15 @@ def score_result(r,brand,model,year,target_km,hp=None,transmission=None,dica_gam
         elif re.search(r"\bfourgon(?:s)?\b",low): score-=20
     elif category=="camping":
         if re.search(r"\bfourgon(?:s)?\b|\bvan(?:s)?\b",low): score-=15
-    model_score=model_match_score(low,model)
-    if model_score<=0:
+    # Le modèle doit être présent dans le TITRE de l'annonce (ou dans le
+    # titre détaillé déjà récupéré). Un snippet peut mélanger plusieurs véhicules.
+    # C'est particulièrement important pour les modèles numériques (328, 270...).
+    title_model_score=model_match_score(title,model)
+    detail_title=str((r.get("_detail") or {}).get("title","") or "")
+    detail_model_score=model_match_score(detail_title,model) if detail_title else 0
+    if title_model_score<=0 and detail_model_score<=0:
         return 0
+    model_score=max(title_model_score,detail_model_score)
     score+=model_score
     # La finition DICA ne sert PAS à filtrer le marché.
     # Les annonces sont recherchées sur marque + modèle + année + catégorie.
@@ -1099,6 +1105,13 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
 def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
     price,rkm=parse_price_km(r,year,target_km)
     text=f"{r.get('title','')} {r.get('snippet','')}"
+    # Même garde-fou dans les comparables automatiques : le snippet ne peut
+    # jamais faire passer un autre modèle pour le modèle recherché.
+    title_model_ok=model_match_score(str(r.get("title","") or ""),model)>0
+    detail_title=str((r.get("_detail") or {}).get("title","") or "")
+    detail_model_ok=bool(detail_title and model_match_score(detail_title,model)>0)
+    if not title_model_ok and not detail_model_ok:
+        return None
     title_years=extract_years(str(r.get("title","")))
     snippet_years=extract_years(str(r.get("snippet","")))
     # Année stricte : si le titre porte une année différente, l'annonce est
@@ -1472,7 +1485,16 @@ def cote():
         price,rkm=parse_price_km(r,year,km)
         txt=f"{r.get('title','')} {r.get('snippet','')}"
         if not price or is_new(r) or is_unavailable(r): continue
-        if model_match_score(txt,model)<=0: continue
+        # Pour une sélection manuelle, l'identité modèle doit être portée par
+        # le titre de l'annonce (ou par son titre détaillé), jamais seulement
+        # par un snippet de catalogue qui peut citer plusieurs véhicules.
+        title_model_ok=model_match_score(str(r.get("title","") or ""),model)>0
+        detail_title=str((r.get("_detail") or {}).get("title","") or "")
+        detail_model_ok=bool(detail_title and model_match_score(detail_title,model)>0)
+        if not title_model_ok and not detail_model_ok: continue
+        # Les pages catalogue génériques ne sont pas des annonces sélectionnables
+        # sauf si leur propre titre identifie clairement le modèle.
+        if is_aggregation(r) and not title_model_ok: continue
         yrs=extract_years(txt)
         if yrs and not any(y in market_years for y in yrs): continue
         # Sélection manuelle : on laisse aussi passer une annonce dont le
