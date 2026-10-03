@@ -1227,6 +1227,147 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
         "provenance":provenance,"fields_verified":[k for k,v in fields.items() if v],
         "complete_fields":complete,"evidence":evidence
     }
+
+def collect_lbc_search_results(brand, model, years, max_pages=3):
+    """Collecte LBC directement depuis ses pages de résultats.
+    Le prix, le km, l'année, le titre et l'URL sont extraits du même bloc
+    d'annonce de la page de résultats. Aucun prix Serper n'est utilisé.
+    """
+    if not SELECTOLAX_AVAILABLE:
+        return []
+
+    from urllib.parse import urljoin
+    slug_parts=[]
+    for value in (f"{brand}-{model}", model):
+        s=re.sub(r"[^a-z0-9]+","-",unicodedata.normalize("NFKD",str(value or "")).encode("ascii","ignore").decode("ascii").lower()).strip("-")
+        if s and s not in slug_parts:
+            slug_parts.append(s)
+
+    pages=[]
+    for slug in slug_parts:
+        for page in range(1,max_pages+1):
+            base=f"https://www.leboncoin.fr/ck/caravaning/{slug}"
+            pages.append(base if page==1 else f"{base}/p-{page}")
+    pages=list(dict.fromkeys(pages))
+
+    def fetch_page(url):
+        try:
+            resp=requests.get(
+                url,
+                headers={
+                    "User-Agent":"Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140 Safari/537.36",
+                    "Accept-Language":"fr-FR,fr;q=0.9,en;q=0.8",
+                    "Accept":"text/html,application/xhtml+xml"
+                },
+                timeout=10,
+                allow_redirects=True
+            )
+            if resp.status_code!=200 or not resp.text:
+                return []
+            tree=LexborHTMLParser(resp.text)
+        except Exception:
+            return []
+
+        out=[]
+        seen=set()
+        for a in tree.css('a[href*="/ad/"]'):
+            try:
+                href=str(a.attributes.get("href","") or "").strip()
+            except Exception:
+                href=""
+            if not href:
+                continue
+            link=urljoin("https://www.leboncoin.fr",href).split("#")[0].rstrip("/")
+            if "/ad/" not in link.lower() or link in seen:
+                continue
+
+            # On remonte seulement quelques niveaux : le premier ancêtre
+            # contenant prix + km + année est le bloc d'annonce recherché.
+            node=a
+            best=None
+            for _ in range(9):
+                if node is None:
+                    break
+                try:
+                    txt=re.sub(r"\s+"," ",node.text(separator=" ",strip=True)).strip()
+                except Exception:
+                    txt=""
+                if txt and len(txt)<=6000:
+                    prices=extract_prices(txt)
+                    kms=extract_kms(txt)
+                    yrs=extract_years(txt)
+                    valid_years=[y for y in yrs if y in years]
+                    if prices and kms and valid_years:
+                        best=(txt,prices,kms,valid_years)
+                        break
+                try:
+                    node=node.parent
+                except Exception:
+                    node=None
+
+            if not best:
+                continue
+
+            txt,prices,kms,valid_years=best
+            title=""
+            try:
+                title=re.sub(r"\s+"," ",a.text(separator=" ",strip=True)).strip()
+            except Exception:
+                pass
+            if not title:
+                title=txt[:300]
+
+            # Le modèle doit être présent dans le bloc de l'annonce.
+            if norm(model) and norm(model) not in norm(txt):
+                compact_model=re.sub(r"\s+","",norm(model))
+                compact_txt=re.sub(r"\s+","",norm(txt))
+                if compact_model not in compact_txt:
+                    continue
+
+            year_detected=valid_years[0]
+            price=prices[0]
+            km=kms[0]
+
+            seen.add(link)
+            out.append({
+                "source_domain":"leboncoin.fr",
+                "title":title,
+                "url":link,
+                "snippet":txt[:1000],
+                "price":price,
+                "price_source":"lbc_search_page",
+                "km":km,
+                "year":year_detected,
+                "all_years":yrs[:6],
+                "query":"LBC_SEARCH_PAGE",
+                "direct_listing":True,
+                "detail_scraped":True,
+                "raw_price":price,
+                "raw_km":km
+            })
+        return out
+
+    collected=[]
+    with ThreadPoolExecutor(max_workers=min(6,len(pages))) as pool:
+        futures=[pool.submit(fetch_page,p) for p in pages]
+        for fut in as_completed(futures):
+            try:
+                collected.extend(fut.result())
+            except Exception:
+                pass
+
+    # Une URL = une annonce. On privilégie la première occurrence.
+    unique=[]
+    seen=set()
+    for row in collected:
+        u=row.get("url")
+        if not u or u in seen:
+            continue
+        seen.add(u)
+        unique.append(row)
+    return unique
+
+
 @app.post("/api/collecte")
 def collecte_diagnostic():
     """Diagnostic pur de collecte : recherche les annonces et retourne les données brutes.
@@ -1306,8 +1447,17 @@ def collecte_diagnostic():
                 return False
         return True
 
+    # Collecte LBC directe : le prix est extrait de la page de résultats
+    # actuelle, dans le même bloc que l'annonce. C'est la source de vérité LBC.
+    lbc_direct=collect_lbc_search_results(brand,model,market_years,max_pages=3)
     rows=[]
     seen=set()
+    for lr in lbc_direct:
+        u=str(lr.get("url","") or "").strip()
+        if u and u not in seen:
+            seen.add(u)
+            rows.append(lr)
+
     for r in results:
         url=str(r.get("link","") or "").strip()
         if not url or url in seen or not is_direct_listing_url(url):
