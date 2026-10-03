@@ -1337,6 +1337,53 @@ def collecte_diagnostic():
             "raw_km":raw_kms[0] if raw_kms else None
         })
 
+    # Leboncoin charge souvent le prix en JavaScript : le HTML de la fiche
+    # est alors accessible mais ne contient pas le prix. On fait une seconde
+    # recherche Serper ciblée sur LE TITRE + LE KM et on n'accepte le prix que
+    # si Serper renvoie exactement la même URL de fiche.
+    missing_price=[x for x in rows if x.get("source_domain")=="leboncoin.fr" and x.get("price") is None]
+    if missing_price:
+        def recover_lbc(row):
+            title=str(row.get("title","") or "").strip()
+            km=row.get("km")
+            if not title or km is None:
+                return None
+            q=f'site:leboncoin.fr/ad/ "{title}" "{int(km)} km" prix'
+            try:
+                resp=requests.post(
+                    "https://google.serper.dev/search",
+                    headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},
+                    json={"q":q,"gl":"fr","hl":"fr","num":10},
+                    timeout=10
+                )
+                resp.raise_for_status()
+                items=resp.json().get("organic",[])
+            except requests.RequestException:
+                return None
+            target_url=str(row.get("url","") or "").rstrip("/")
+            for item in items:
+                link=str(item.get("link","") or "").rstrip("/")
+                if not link or link!=target_url:
+                    continue
+                t=f"{item.get('title','')} {item.get('snippet','')}"
+                prices=extract_prices(t)
+                if prices:
+                    return prices[0]
+            return None
+
+        with ThreadPoolExecutor(max_workers=min(5,len(missing_price))) as pool:
+            futs={pool.submit(recover_lbc,x):x for x in missing_price}
+            for fut in as_completed(futs):
+                row=futs[fut]
+                try:
+                    recovered=fut.result()
+                except Exception:
+                    recovered=None
+                if recovered is not None:
+                    row["price"]=recovered
+                    row["price_source"]="serper_same_url"
+                    row["price_recovered"]=True
+
     def site_key(domain):
         d=domain.lower()
         if "leboncoin" in d:return "Leboncoin"
