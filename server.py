@@ -1058,17 +1058,32 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     # plus.
     if title_years and year not in title_years:
         return None
+    # Preuve forte : quand prix + km + année + modèle + finition sont tous
+    # présents dans le même résultat Serper, cette ligne représente une annonce
+    # cohérente. On ne doit pas la rejeter à cause d'un mauvais rattachement
+    # d'année dans un snippet contenant aussi des éléments de navigation.
+    source_exact = (
+        bool(price) and
+        (rkm is not None and int(rkm) == int(target_km)) and
+        (year in extract_years(text)) and
+        model_match_score(text,model) > 0 and
+        (not dica_gamme or finish_alias_match(text,dica_gamme,model)) and
+        (not hp or hp in extract_hp(text))
+    )
     associated_year=price_associated_year(r,price,year,target_km) if price else None
-    if associated_year is not None and associated_year!=year:
+    if associated_year is not None and associated_year!=year and not source_exact:
         return None
-    if associated_year is None and year not in snippet_years:
-        return None
+    if associated_year is None and year not in snippet_years and not source_exact:
+        # Une fiche détail vérifiée peut également fournir l'année.
+        detail_year=(r.get("_detail") or {}).get("year")
+        if detail_year!=year:
+            return None
     if is_aggregation(r) and not aggregation_title_is_same_vehicle(r,model,dica_gamme):
         return None
     score=score_result(r,brand,model,year,target_km,hp,transmission,dica_gamme,category)
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
     if is_aggregation(r): score-=10
-    if score<65: return None
+    if score<65 and not source_exact: return None
     adjusted=price; km_adjustment=0
     if rkm is not None:
         if category=="poids_lourd":
