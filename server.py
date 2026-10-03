@@ -1229,123 +1229,118 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     }
 
 def collect_lbc_search_results(brand, model, years, max_pages=3):
-    """Collecte LBC directement depuis ses pages de résultats.
-    Le prix, le km, l'année, le titre et l'URL sont extraits du même bloc
-    d'annonce de la page de résultats. Aucun prix Serper n'est utilisé.
-    """
-    if not SELECTOLAX_AVAILABLE:
-        return []
-
+    """Collecte LBC légère : HTTP + données JSON embarquées dans la page.
+    Aucun navigateur Chromium et aucun prix Serper ne sont utilisés."""
     from urllib.parse import urljoin
-    slug_parts=[]
+    slugs=[]
     for value in (f"{brand}-{model}", model):
-        s=re.sub(r"[^a-z0-9]+","-",unicodedata.normalize("NFKD",str(value or "")).encode("ascii","ignore").decode("ascii").lower()).strip("-")
-        if s and s not in slug_parts:
-            slug_parts.append(s)
+        slug=re.sub(r"[^a-z0-9]+","-",unicodedata.normalize("NFKD",str(value or "")).encode("ascii","ignore").decode("ascii").lower()).strip("-")
+        if slug and slug not in slugs:
+            slugs.append(slug)
 
     pages=[]
-    for slug in slug_parts:
-        for page in range(1,max_pages+1):
-            base=f"https://www.leboncoin.fr/ck/caravaning/{slug}"
-            pages.append(base if page==1 else f"{base}/p-{page}")
+    for slug in slugs:
+        base=f"https://www.leboncoin.fr/ck/caravaning/{slug}"
+        pages.extend([base]+[f"{base}/p-{p}" for p in range(2,max_pages+1)])
     pages=list(dict.fromkeys(pages))
 
+    def walk(obj, found):
+        if isinstance(obj, dict):
+            keys={str(k).lower() for k in obj.keys()}
+            url=str(obj.get("url") or obj.get("link") or "")
+            subject=str(obj.get("subject") or obj.get("title") or obj.get("name") or "")
+            price=obj.get("price")
+            if isinstance(price,list) and price:
+                price=price[0]
+            if url and "/ad/" in url.lower() and subject:
+                blob=json.dumps(obj,ensure_ascii=False)
+                prices=extract_prices(blob)
+                if not prices and isinstance(price,(int,float,str)):
+                    try:
+                        pv=clean_num(price)
+                        if 10000<=pv<=150000:
+                            prices=[pv]
+                    except Exception:
+                        prices=[]
+                kms=extract_kms(blob)
+                yrs=extract_years(blob+" "+subject)
+                valid=[y for y in yrs if y in years]
+                if prices and valid:
+                    compact_model=re.sub(r"\s+","",norm(model))
+                    compact_blob=re.sub(r"\s+","",norm(blob))
+                    if norm(model) in norm(blob) or compact_model in compact_blob:
+                        found.append({
+                            "source_domain":"leboncoin.fr",
+                            "title":subject,
+                            "url":url.split("#")[0].rstrip("/"),
+                            "snippet":(subject+" "+blob[:800])[:1000],
+                            "price":prices[0],
+                            "price_source":"lbc_embedded_json",
+                            "km":kms[0] if kms else None,
+                            "year":valid[0],
+                            "all_years":yrs[:6],
+                            "query":"LBC_HTTP_JSON",
+                            "direct_listing":True,
+                            "detail_scraped":True,
+                            "raw_price":prices[0],
+                            "raw_km":kms[0] if kms else None
+                        })
+            for v in obj.values():
+                if isinstance(v,(dict,list)):
+                    walk(v,found)
+        elif isinstance(obj,list):
+            for v in obj:
+                if isinstance(v,(dict,list)):
+                    walk(v,found)
+
     def fetch_page(url):
+        found=[]
         try:
             resp=requests.get(
                 url,
                 headers={
                     "User-Agent":"Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/140 Safari/537.36",
-                    "Accept-Language":"fr-FR,fr;q=0.9,en;q=0.8",
-                    "Accept":"text/html,application/xhtml+xml"
+                    "Accept":"text/html,application/xhtml+xml",
+                    "Accept-Language":"fr-FR,fr;q=0.9"
                 },
-                timeout=10,
-                allow_redirects=True
+                timeout=10
             )
             if resp.status_code!=200 or not resp.text:
-                return []
-            tree=LexborHTMLParser(resp.text)
-        except Exception:
-            return []
+                return found
 
-        out=[]
-        seen=set()
-        for a in tree.css('a[href*="/ad/"]'):
-            try:
-                href=str(a.attributes.get("href","") or "").strip()
-            except Exception:
-                href=""
-            if not href:
-                continue
-            link=urljoin("https://www.leboncoin.fr",href).split("#")[0].rstrip("/")
-            if "/ad/" not in link.lower() or link in seen:
-                continue
+            html=resp.text
+            tree=LexborHTMLParser(html)
 
-            # On remonte seulement quelques niveaux : le premier ancêtre
-            # contenant prix + km + année est le bloc d'annonce recherché.
-            node=a
-            best=None
-            for _ in range(9):
-                if node is None:
-                    break
-                try:
-                    txt=re.sub(r"\s+"," ",node.text(separator=" ",strip=True)).strip()
-                except Exception:
-                    txt=""
-                if txt and len(txt)<=6000:
-                    prices=extract_prices(txt)
-                    kms=extract_kms(txt)
-                    yrs=extract_years(txt)
-                    valid_years=[y for y in yrs if y in years]
-                    if prices and kms and valid_years:
-                        best=(txt,prices,kms,valid_years)
-                        break
-                try:
-                    node=node.parent
-                except Exception:
-                    node=None
-
-            if not best:
-                continue
-
-            txt,prices,kms,valid_years=best
-            title=""
-            try:
-                title=re.sub(r"\s+"," ",a.text(separator=" ",strip=True)).strip()
-            except Exception:
-                pass
-            if not title:
-                title=txt[:300]
-
-            # Le modèle doit être présent dans le bloc de l'annonce.
-            if norm(model) and norm(model) not in norm(txt):
-                compact_model=re.sub(r"\s+","",norm(model))
-                compact_txt=re.sub(r"\s+","",norm(txt))
-                if compact_model not in compact_txt:
+            # Next.js : le catalogue est généralement présent dans __NEXT_DATA__
+            # ou dans les scripts JSON de la page. On parse uniquement ces blocs.
+            scripts=tree.css("script")
+            for script in scripts:
+                raw=script.text()
+                if not raw or len(raw)>500000:
                     continue
+                typ=str(script.attributes.get("type","") or "").lower()
+                sid=str(script.attributes.get("id","") or "").lower()
+                if typ=="application/json" or sid=="__next_data__":
+                    try:
+                        walk(json.loads(unescape(raw)),found)
+                    except Exception:
+                        pass
 
-            year_detected=valid_years[0]
-            price=prices[0]
-            km=kms[0]
-
-            seen.add(link)
-            out.append({
-                "source_domain":"leboncoin.fr",
-                "title":title,
-                "url":link,
-                "snippet":txt[:1000],
-                "price":price,
-                "price_source":"lbc_search_page",
-                "km":km,
-                "year":year_detected,
-                "all_years":yrs[:6],
-                "query":"LBC_SEARCH_PAGE",
-                "direct_listing":True,
-                "detail_scraped":True,
-                "raw_price":price,
-                "raw_km":km
-            })
-        return out
+            # Fallback léger : certaines versions mettent les données dans
+            # des attributs/JSON texte sans id __NEXT_DATA__.
+            if not found:
+                for pattern in (
+                    r'<script[^>]*type=["\']application/json["\'][^>]*>(.*?)</script>',
+                    r'<script[^>]*id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>'
+                ):
+                    for m in re.finditer(pattern,html,re.I|re.S):
+                        try:
+                            walk(json.loads(unescape(m.group(1))),found)
+                        except Exception:
+                            pass
+        except Exception:
+            return found
+        return found
 
     collected=[]
     with ThreadPoolExecutor(max_workers=min(6,len(pages))) as pool:
@@ -1356,7 +1351,6 @@ def collect_lbc_search_results(brand, model, years, max_pages=3):
             except Exception:
                 pass
 
-    # Une URL = une annonce. On privilégie la première occurrence.
     unique=[]
     seen=set()
     for row in collected:
