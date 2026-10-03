@@ -2,3 +2,4 @@ flask
 requests
 gunicorn
 selectolax==0.4.13
+curl_cffi==0.14.0
