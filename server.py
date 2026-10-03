@@ -278,7 +278,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
     body=tree.css_first("body")
     body_text=node_text(body) if body else ""
     page_card_count=len(re.findall(
-        r"\bchallenger\s+(?:graphite\s+|start\s+|break\s+|etape\s+|étape\s+|premium\s+)?328\\b",
+        r"\bchallenger\s+(?:graphite\s+|start\s+|break\s+|etape\s+|étape\s+|premium\s+)?328\b",
         body_text,re.I
     ))
     probable_catalogue=any(m in url_low for m in catalogue_markers) or page_card_count>3
@@ -688,7 +688,7 @@ def model_match_score(text,model):
     words=re.findall(r"[a-z0-9]+",compact_text)
     wanted=re.findall(r"[a-z0-9]+",norm(model))
     if model.isdigit():
-        return 48 if re.search(rf"(?<!\\d){re.escape(model)}(?!\\d)",raw) else 0
+        return 48 if re.search(rf"(?<!\d){re.escape(model)}(?!\d)",raw) else 0
     if compact in compact_text:
         return 48
     if len(wanted)>1 and all(w in words for w in wanted):
@@ -1373,7 +1373,7 @@ def cote():
         if detail_year is not None and detail_year!=year:
             return None
         if model and norm(model) not in norm(detail_title):
-            compact_model=norm(re.sub(r"(?<=[A-Za-z])(?=\\d)|(?<=\\d)(?=[A-Za-z])"," ",model))
+            compact_model=norm(re.sub(r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])"," ",model))
             if compact_model not in norm(detail_title):
                 return None
 
