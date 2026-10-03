@@ -696,9 +696,7 @@ def model_match_score(text,model):
     return 0
 
 def finish_alias_match(text, requested_gamme, model=""):
-    """Reconnaît les abréviations de finition utilisées par les sites d'annonces.
-    Exemple : GRAPHITE EDITION PREMIUM – 328 -> « Graphite Premium 328 ».
-    """
+    """Reconnaît les abréviations d'une finition, sans accepter une autre finition."""
     if not requested_gamme:
         return False
     raw = unicodedata.normalize("NFKD", str(requested_gamme)).encode("ascii","ignore").decode("ascii").lower()
@@ -709,6 +707,20 @@ def finish_alias_match(text, requested_gamme, model=""):
     if not distinctive:
         return False
     tn = norm(text)
+
+    # Si une autre finition DICA du même modèle/année est explicitement citée,
+    # elle est prioritaire sur l'alias.
+    requested_key=norm(requested_gamme)
+    requested_finish_tokens=set(distinctive)
+    for other in DICA:
+        og=str(other.get("gamme","") or "")
+        if not og or norm(og)==requested_key:
+            continue
+        otokens=[t for t in re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", og).encode("ascii","ignore").decode("ascii").lower())
+                 if t not in model_tokens and t != "edition"]
+        if otokens and set(otokens)!=requested_finish_tokens and all(norm(t) in tn for t in otokens):
+            return False
+
     return all(norm(t) in tn for t in distinctive)
 
 
@@ -796,7 +808,18 @@ def is_unavailable(r):
     return any(w in text for w in ("vendu","déjà vendu","deja vendu","indisponible","archivé","archive"))
 def is_aggregation(r):
     text=f"{r.get('title','')} {r.get('snippet','')}".lower()
-    return any(w in text for w in AGGREGATOR_WORDS)
+    url=str(r.get('link','') or '').lower()
+    url_markers=("/recherche","/search","/listing","/annonces","?q=","&q=","resultats","results","/stock","/l/")
+    return any(w in text for w in AGGREGATOR_WORDS) or any(m in url for m in url_markers)
+
+def aggregation_title_is_same_vehicle(r, model, dica_gamme=None):
+    """Sur une page catalogue, le titre doit lui-même identifier le véhicule."""
+    title=str(r.get("title","") or "")
+    if model and model_match_score(title,model)<=0:
+        return False
+    if dica_gamme:
+        return finish_alias_match(title,dica_gamme,model)
+    return True
 def experimental_brand_value(results, brand, year, category, requested_gamme=None, requested_model=None):
     """Coefficient marque strict : même année/catégorie, annonces reliées à une référence DICA, médiane et filtrage des ratios atypiques."""
     candidates=[]
@@ -958,7 +981,7 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
     text_price=detail_text or source_text
     def fragment_price(text, value):
         if value is None: return None
-        pat=r"(?:\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})\\s*€|€\\s*(?:\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})"
+        pat=r"(?:\d{2,3}(?:[ .]\d{3})+|\d{4,6})\s*€|€\s*(?:\d{2,3}(?:[ .]\d{3})+|\d{4,6})"
         for m in re.finditer(pat,text or ""):
             try:
                 if clean_num(re.sub(r"[^0-9]","",m.group()))==int(value): return m.group(0)
@@ -966,7 +989,7 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
         return None
     def fragment_km(text, value):
         if value is None: return None
-        for m in re.finditer(r"\\b(\\d{1,3}(?:[ .]\\d{3})|\\d{3,6})\\s*km\\b",text or "",re.I):
+        for m in re.finditer(r"\b(\d{1,3}(?:[ .]\d{3})|\d{3,6})\s*km\b",text or "",re.I):
             try:
                 if clean_num(m.group(1))==int(value): return m.group(0)
             except Exception: pass
@@ -980,7 +1003,7 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
         pos=(text or "").lower().find(needle.lower())
         if pos<0: return None
         a=max(0,pos-radius); b=min(len(text),pos+len(needle)+radius)
-        return re.sub(r"\\s+"," ",(text or "")[a:b]).strip()
+        return re.sub(r"\s+"," ",(text or "")[a:b]).strip()
     price,rkm=parse_price_km(r,year,target_km)
     price_ev=fragment_price(text_price,price) or fragment_price(source_text,price)
     km_ev=fragment_km(text_price,rkm) or fragment_km(source_text,rkm)
@@ -1023,6 +1046,8 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
         return None
     if associated_year is None and year not in snippet_years:
         return None
+    if is_aggregation(r) and not aggregation_title_is_same_vehicle(r,model,dica_gamme):
+        return None
     score=score_result(r,brand,model,year,target_km,hp,transmission,dica_gamme,category)
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
     if is_aggregation(r): score-=10
@@ -1049,6 +1074,8 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     evidence=evidence_for_result(r,brand,model,year,target_km,dica_gamme)
     fields={k:bool(v.get("ok")) for k,v in evidence.items() if isinstance(v,dict) and "ok" in v}
     complete=sum(1 for v in fields.values() if v)
+    if is_aggregation(r) and complete < 5:
+        return None
     if detail:
         provenance="fiche_detail_verifiee"
     elif complete>=5:
@@ -1364,7 +1391,20 @@ def cote():
         row=comparable_row(r,brand,model,year,km,hp,transmission,dica_gamme,category)
         if not row: continue
         (context if row["km"] is None else rows).append(row)
-    rows.sort(key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True); context.sort(key=lambda x:x["score"],reverse=True)
+
+    # Une même annonce peut remonter via plusieurs URL (recherche + fiche détail).
+    unique_rows=[]
+    seen_vehicle_keys=set()
+    for row in sorted(rows,key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True):
+        key=(norm(row.get("model","")),norm(row.get("gamme","") or dica_gamme or ""),
+             int(row.get("price") or 0),int(row.get("km") or 0),int(row.get("year") or year))
+        if key in seen_vehicle_keys:
+            continue
+        seen_vehicle_keys.add(key)
+        unique_rows.append(row)
+    rows=unique_rows
+    rows.sort(key=lambda x:(x["score"],-abs((x["km"] or km)-km)),reverse=True)
+    context.sort(key=lambda x:x["score"],reverse=True)
     matching_rows=[x for x in rows if x.get("transmission")==transmission] if transmission else rows
     transmission_fallback=bool(transmission and len(matching_rows)<3)
     primary=(matching_rows if not transmission_fallback else rows)[:15]; values=[x["adjusted"] for x in primary if x["adjusted"]]
