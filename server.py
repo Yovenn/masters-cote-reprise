@@ -947,6 +947,66 @@ def price_associated_year(r, price, target_year, target_km=None):
     # Une année très éloignée du prix n'est pas une association fiable.
     return nearest[1] if abs(nearest[0]-pos)<=220 else None
 
+def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
+    """Retourne les preuves textuelles provenant de LA même annonce source."""
+    detail=r.get("_detail") or {}
+    source_text=f"{r.get('title','')} {r.get('snippet','')}".strip()
+    detail_text=str(detail.get("price_evidence") or "")
+    title_text=str(r.get("title","") or "")
+    # Le détail peut apporter une preuve plus précise pour le prix/km, mais
+    # on conserve aussi la source Serper pour vérifier qu'il s'agit bien de la même annonce.
+    text_price=detail_text or source_text
+    def fragment_price(text, value):
+        if value is None: return None
+        pat=r"(?:\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})\\s*€|€\\s*(?:\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})"
+        for m in re.finditer(pat,text or ""):
+            try:
+                if clean_num(re.sub(r"[^0-9]","",m.group()))==int(value): return m.group(0)
+            except Exception: pass
+        return None
+    def fragment_km(text, value):
+        if value is None: return None
+        for m in re.finditer(r"\\b(\\d{1,3}(?:[ .]\\d{3})|\\d{3,6})\\s*km\\b",text or "",re.I):
+            try:
+                if clean_num(m.group(1))==int(value): return m.group(0)
+            except Exception: pass
+        return None
+    def fragment_year(text, value):
+        if value is None: return None
+        m=re.search(rf"\\b{int(value)}\\b",text or "")
+        return m.group(0) if m else None
+    def around(text, needle, radius=90):
+        if not needle: return None
+        pos=(text or "").lower().find(needle.lower())
+        if pos<0: return None
+        a=max(0,pos-radius); b=min(len(text),pos+len(needle)+radius)
+        return re.sub(r"\\s+"," ",(text or "")[a:b]).strip()
+    price,rkm=parse_price_km(r,year,target_km)
+    price_ev=fragment_price(text_price,price) or fragment_price(source_text,price)
+    km_ev=fragment_km(text_price,rkm) or fragment_km(source_text,rkm)
+    year_ev=fragment_year(title_text,year) or fragment_year(str(r.get("snippet","") or ""),year) or fragment_year(detail_text,year)
+    model_ev=around(source_text,model) or around(str(detail.get("title","") or ""),model)
+    finish_ev=None
+    if dica_gamme:
+        finish_ev=around(source_text,dica_gamme)
+        if not finish_ev and finish_alias_match(source_text,dica_gamme,model):
+            finish_ev=around(source_text,re.sub(r"\\bedition\\b","",str(dica_gamme),flags=re.I).strip())
+        if not finish_ev and detail.get("title") and finish_alias_match(str(detail.get("title")),dica_gamme,model):
+            finish_ev=around(str(detail.get("title")),re.sub(r"\\bedition\\b","",str(dica_gamme),flags=re.I).strip())
+    fields={
+        "prix": bool(price_ev), "kilometrage": bool(km_ev), "annee": bool(year_ev),
+        "modele": bool(model_ev), "finition": (not dica_gamme) or bool(finish_ev)
+    }
+    return {
+        "prix":{"ok":bool(price_ev),"preuve":price_ev,"contexte":around(text_price,price_ev,110)},
+        "kilometrage":{"ok":bool(km_ev),"preuve":km_ev,"contexte":around(text_price,km_ev,110)},
+        "annee":{"ok":bool(year_ev),"preuve":year_ev,"contexte":around(source_text,year_ev,90)},
+        "modele":{"ok":bool(model_ev),"preuve":model_ev,"contexte":model_ev},
+        "finition":{"ok":bool(fields["finition"]),"preuve":finish_ev,"contexte":finish_ev},
+        "score":sum(1 for v in fields.values() if v),
+        "source":str(r.get("link","") or detail.get("url","") or "")
+    }
+
 def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
     price,rkm=parse_price_km(r,year,target_km)
     text=f"{r.get('title','')} {r.get('snippet','')}"
@@ -986,13 +1046,8 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     source_years=extract_years(source_text)
     source_kms=extract_kms(source_text)
     source_prices=extract_prices(source_text)
-    fields={
-        "prix": bool(price),
-        "kilometrage": rkm is not None,
-        "annee": year in source_years or (detail.get("year")==year),
-        "modele": model_match_score(source_text,model)>0 or (model and model_match_score(str(detail.get("title","")),model)>0),
-        "finition": (not dica_gamme) or dica_gamme_score(source_text,brand,model,year,dica_gamme,category)>=0 or finish_alias_match(source_text,dica_gamme,model)
-    }
+    evidence=evidence_for_result(r,brand,model,year,target_km,dica_gamme)
+    fields={k:bool(v.get("ok")) for k,v in evidence.items() if isinstance(v,dict) and "ok" in v}
     complete=sum(1 for v in fields.values() if v)
     if detail:
         provenance="fiche_detail_verifiee"
@@ -1023,7 +1078,7 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
         "score":round(score),"source":r.get("source",""),"source_domain":source_domain,
         "transmission":extract_transmission(text),"reliability":reliability,
         "provenance":provenance,"fields_verified":[k for k,v in fields.items() if v],
-        "complete_fields":complete
+        "complete_fields":complete,"evidence":evidence
     }
 @app.get("/")
 def home(): return send_from_directory("static","index.html")
