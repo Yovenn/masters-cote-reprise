@@ -1105,12 +1105,13 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     # hors cible. Sinon, l'année doit être associée au prix retenu ; la simple
     # présence de 2022 quelque part dans un snippet multi-annonces ne suffit
     # plus.
-    if title_years and year not in title_years:
+    market_years=(year, year+1)
+    if title_years and not any(y in market_years for y in title_years):
         return None
     associated_year=price_associated_year(r,price,year,target_km) if price else None
-    if associated_year is not None and associated_year!=year:
+    if associated_year is not None and associated_year not in market_years:
         return None
-    if associated_year is None and year not in snippet_years:
+    if associated_year is None and not any(y in market_years for y in snippet_years):
         return None
     score=score_result(r,brand,model,year,target_km,hp,transmission,dica_gamme,category)
     if not price or score<65 or is_new(r) or is_unavailable(r): return None
