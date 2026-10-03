@@ -1302,7 +1302,11 @@ def cote():
     # van et poids lourd). Les annonces hors fenêtre ne sont jamais proposées
     # à la sélection manuelle.
     market_years=(year, year+1)
-    market_year_query=f"{year} {year+1}"
+    # IMPORTANT : ne pas mettre « 2022 2023 » dans une même requête :
+    # un moteur de recherche peut alors exiger les deux années et éliminer
+    # précisément les annonces qui ne mentionnent que leur année réelle.
+    # Les requêtes sont donc générées séparément pour 2022 puis 2023.
+    market_year_query=str(year)
     # Les sites d'annonces écrivent souvent les modèles différemment
     # (ex. « MC4 262 » / « MC 4 262 » / « MC LOUIS MC4 262 »).
     # On multiplie les formulations de recherche, mais le filtrage final
@@ -1354,6 +1358,9 @@ def cote():
             f'"{brand} {model}" {market_year_query} {market_term} occasion -"Start Edition" -"Etape Edition"',
             f'"{brand} {model}" {market_year_query} {market_term} occasion -"Start Edition" -"Etape Edition" -"Graphite"'
         ])
+    # Chaque requête est exécutée séparément pour l'année cible et l'année
+    # suivante. Ainsi une annonce 2022 n'a jamais besoin de contenir « 2023 ».
+    queries = queries + [q.replace(str(year), str(year+1)) for q in queries]
     queries=list(dict.fromkeys(queries))
     # Déduplication des requêtes pour ne pas gaspiller les appels Serper.
     queries=list(dict.fromkeys(queries))
