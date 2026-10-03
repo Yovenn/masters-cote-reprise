@@ -1439,7 +1439,7 @@ def collecte_diagnostic():
                     raw=script.text() or ""
                     if "price" not in raw.lower():
                         continue
-                    for m in re.finditer(r'(?:"(?:price|salePrice)"|(?:price|salePrice))\\s*[:=]\\s*["\\']?(\\d{4,6})(?:[.,]\\d+)?["\\']?', raw, re.I):
+                    for m in re.finditer(r"""(?:"(?:price|salePrice)"|(?:price|salePrice))\s*[:=]\s*["']?(\d{4,6})(?:[.,]\d+)?["']?""", raw, re.I):
                         try:
                             pv=int(m.group(1))
                             if 10000<=pv<=150000:
