@@ -1414,17 +1414,53 @@ def cote():
     experimental_brand=None
     if len(values)<3:
         experimental_professional_value = dica[0]["reprise_corrigee"] if len(dica)==1 else None
+        # Une annonce qualifiée suffit maintenant à produire un résultat
+        # provisoire. Le moteur ne fabrique jamais une valeur à partir d'une
+        # annonce non vérifiée : seules les lignes déjà retenues ci-dessus
+        # peuvent entrer dans ce calcul.
+        if values:
+            provisional_market=round(statistics.median(values)/100)*100
+            provisional_low=round(min(values)/100)*100
+            provisional_high=round(max(values)/100)*100
+            provisional_confidence="Faible" if len(values)>=2 else "Très faible"
+            provisional_gap=(round(provisional_market-dica[0]["revente_corrigee"])
+                             if len(dica)==1 else None)
+            return jsonify({
+                "status":"ok","provisional":True,"category":category,"ptac":ptac,
+                "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),
+                "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],"market":provisional_market,
+                "market_low":provisional_low,"market_high":provisional_high,
+                "search_time":datetime.now().astimezone().isoformat(timespec="minutes"),
+                "fiscal_cv":cv,"horsepower":hp,"transmission":transmission,"transmission_fallback":transmission_fallback,
+                "transmission_counts":{"Automatique":0,"Manuelle":0,"Inconnue":len(primary)},
+                "transmission_gap":None,"trade":max(0,provisional_market-MASTERS_FRAIS),
+                "masters_frais":MASTERS_FRAIS,"confidence":provisional_confidence,"count":len(values),
+                "excluded_count":0,"dica":dica,"dica_ambiguous":len(dica)>1,
+                "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if (not dica and category!="poids_lourd") else [],
+                "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,
+                           "transmission_fallback":transmission_fallback,
+                           "fiabilite_A":sum(1 for x in primary if x.get("reliability")=="A"),
+                           "fiabilite_B":sum(1 for x in primary if x.get("reliability")=="B"),
+                           "sources":sorted({x.get("source_domain") for x in primary if x.get("source_domain")})},
+                "experimental_recalage_factor":DICA_RECALAGE_FACTOR,
+                "experimental_market_gap":provisional_gap,
+                "experimental_professional_value":experimental_professional_value,
+                "message":"Résultat provisoire : au moins une annonce qualifiée a été vérifiée. La valeur sera consolidée lorsque davantage de comparables fiables seront trouvés."
+            })
         return jsonify({
             "status":"insufficient","category":category,"ptac":ptac,
             "category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),
             "dica_gamme":dica_gamme,"comparables":primary,"context":context[:5],"dica":dica,
             "dica_ambiguous":len(dica)>1,
             "dica_near":dica_near_matches(brand,model,year,km,hp,options_total,category) if (not dica and category!="poids_lourd") else [],
-            "experimental_recalage_factor":DICA_RECALAGE_FACTOR,
-            "experimental_market_gap":None,
+            "experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":None,
             "experimental_professional_value":experimental_professional_value,
-            "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback,"fiabilite_A":sum(1 for x in primary if x.get("reliability")=="A"),"fiabilite_B":sum(1 for x in primary if x.get("reliability")=="B"),"sources":sorted({x.get("source_domain") for x in primary if x.get("source_domain")})},
-            "message":"Marché insuffisant : le moteur n'a pas encore trouvé 3 comparables qualifiés. Aucune recherche secondaire n'est lancée."
+            "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,
+                       "transmission_fallback":transmission_fallback,
+                       "fiabilite_A":sum(1 for x in primary if x.get("reliability")=="A"),
+                       "fiabilite_B":sum(1 for x in primary if x.get("reliability")=="B"),
+                       "sources":sorted({x.get("source_domain") for x in primary if x.get("source_domain")})},
+            "message":"Marché insuffisant : aucune annonce qualifiée n'a été retenue. Aucune valeur de marché n'est fabriquée."
         })
     med=statistics.median(values)
     filtered_values=list(values)
