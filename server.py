@@ -278,7 +278,7 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
     body=tree.css_first("body")
     body_text=node_text(body) if body else ""
     page_card_count=len(re.findall(
-        r"\bchallenger\s+(?:graphite\s+|start\s+|break\s+|etape\s+|étape\s+|premium\s+)?328\\b",
+        r"\bchallenger\s+(?:graphite\s+|start\s+|break\s+|etape\s+|étape\s+|premium\s+)?328\b",
         body_text,re.I
     ))
     probable_catalogue=any(m in url_low for m in catalogue_markers) or page_card_count>3
@@ -958,7 +958,7 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
     text_price=detail_text or source_text
     def fragment_price(text, value):
         if value is None: return None
-        pat=r"(?:\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})\\s*€|€\\s*(?:\\d{2,3}(?:[ .]\\d{3})+|\\d{4,6})"
+        pat=r"(?:\d{2,3}(?:[ .]\d{3})+|\d{4,6})\s*€|€\s*(?:\d{2,3}(?:[ .]\d{3})+|\d{4,6})"
         for m in re.finditer(pat,text or ""):
             try:
                 if clean_num(re.sub(r"[^0-9]","",m.group()))==int(value): return m.group(0)
@@ -966,7 +966,7 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
         return None
     def fragment_km(text, value):
         if value is None: return None
-        for m in re.finditer(r"\\b(\\d{1,3}(?:[ .]\\d{3})|\\d{3,6})\\s*km\\b",text or "",re.I):
+        for m in re.finditer(r"\b(\d{1,3}(?:[ .]\d{3})|\d{3,6})\s*km\b",text or "",re.I):
             try:
                 if clean_num(m.group(1))==int(value): return m.group(0)
             except Exception: pass
