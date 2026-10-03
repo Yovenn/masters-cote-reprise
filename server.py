@@ -1330,7 +1330,13 @@ def collecte_diagnostic():
             target_gamme=None
         ) or {}
 
-        price=detail.get("price") if detail.get("price") is not None else (raw_prices[0] if raw_prices else None)
+        # Leboncoin : ne jamais utiliser le prix du snippet Serper comme
+        # vérité finale. Les index peuvent être obsolètes (annonce supprimée
+        # ou prix ancien). Pour LBC, le prix doit venir de la fiche actuelle.
+        if "leboncoin.fr" in domain:
+            price=detail.get("price") if detail.get("price") is not None else None
+        else:
+            price=detail.get("price") if detail.get("price") is not None else (raw_prices[0] if raw_prices else None)
         km=detail.get("km") if detail.get("km") is not None else (raw_kms[0] if raw_kms else None)
         detail_title=str(detail.get("title","") or "")
         detail_year=detail.get("year")
@@ -1380,12 +1386,25 @@ def collecte_diagnostic():
                 tree=LexborHTMLParser(html)
                 title_node=tree.css_first("title")
                 page_title=re.sub(r"\\s+"," ",title_node.text(separator=" ",strip=True)).strip() if title_node else ""
-                combined_title=norm(page_title+" "+str(row.get("title","") or ""))
+                # Une fiche supprimée peut répondre 200 avec une page générique.
+                # Elle ne doit jamais être validée à partir du seul ancien titre
+                # conservé par Serper.
+                actual_text=norm(" ".join(tree.text(separator=" ",strip=True).split()))
+                unavailable=("annonce indisponible" in actual_text or
+                             "annonce supprimée" in actual_text or
+                             "cette annonce n'est plus disponible" in actual_text or
+                             "cette annonce est indisponible" in actual_text)
+                if unavailable:
+                    return None
+                combined_title=norm(page_title)
                 if model_norm and model_norm not in combined_title:
                     compact_model=re.sub(r"\\s+","",model_norm)
                     if compact_model not in re.sub(r"\\s+","",combined_title):
                         return None
-                page_years=extract_years(page_title+" "+str(row.get("title","") or ""))
+                if model_norm and model_norm not in combined_title:
+                page_years=extract_years(page_title)
+                if year not in page_years:
+                    return None
                 if year not in page_years:
                     return None
 
