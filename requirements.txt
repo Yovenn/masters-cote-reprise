@@ -2,3 +2,4 @@ flask
 requests
 gunicorn
 selectolax==0.4.13
+playwright==1.55.0
