@@ -1330,6 +1330,13 @@ def collecte_diagnostic():
             target_gamme=None
         ) or {}
 
+        domain=""
+        try:
+            from urllib.parse import urlparse
+            domain=re.sub(r"^www\.","",urlparse(url).netloc.lower())
+        except Exception:
+            pass
+
         # Leboncoin : ne jamais utiliser le prix du snippet Serper comme
         # vérité finale. Les index peuvent être obsolètes (annonce supprimée
         # ou prix ancien). Pour LBC, le prix doit venir de la fiche actuelle.
@@ -1342,13 +1349,6 @@ def collecte_diagnostic():
         detail_year=detail.get("year")
         years=extract_years(f"{detail_title} {txt}")
         detected_year=detail_year if detail_year in market_years else next((y for y in years if y in market_years),None)
-
-        domain=""
-        try:
-            from urllib.parse import urlparse
-            domain=re.sub(r"^www\.","",urlparse(url).netloc.lower())
-        except Exception:
-            pass
 
         rows.append({
             "source_domain":domain,
