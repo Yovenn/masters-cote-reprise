@@ -1287,6 +1287,12 @@ def cote():
     transmission_query=f" {transmission.lower()}" if transmission else ""
     market_term="camping-car poids lourd" if category=="poids_lourd" else ("camping-car" if category=="camping" else ("fourgon aménagé" if category=="fourgon" else "van aménagé"))
     gamme_query=f' "{dica_gamme}"' if dica_gamme else ""
+    # Fenêtre de recherche marché : année du véhicule + l'année suivante.
+    # Cette règle est commune à toutes les catégories (camping-car, fourgon,
+    # van et poids lourd). Les annonces hors fenêtre ne sont jamais proposées
+    # à la sélection manuelle.
+    market_years=(year, year+1)
+    market_year_query=f"{year} {year+1}"
     # Les sites d'annonces écrivent souvent les modèles différemment
     # (ex. « MC4 262 » / « MC 4 262 » / « MC LOUIS MC4 262 »).
     # On multiplie les formulations de recherche, mais le filtrage final
@@ -1300,34 +1306,43 @@ def cote():
     # Recherche volontairement courte : on privilégie quelques requêtes très ciblées
     # plutôt qu'une longue série d'appels Serper séquentiels.
     queries=[
-        f'"{brand} {model}" "{dica_gamme}" {year} {market_term} occasion',
-        f'"{brand} {model}" "{dica_gamme}" {year} "{km} km" {market_term} occasion',
-        f'"{brand} {model}" "{dica_gamme}" {year} prix occasion',
-        f'site:leboncoin.fr "{brand} {model}" "{dica_gamme}" {year} {market_term}',
-        f'site:annonces-caravaning.com "{brand} {model}" {year} {market_term}',
-        f'site:camping-car.com/occasion/annonces "{brand} {model}" {year} {market_term}',
-        f'site:campingcarannonces.com "{brand} {model}" {year} {market_term}',
-        f'site:paruvendu.fr "{brand} {model}" {year} camping-car occasion'
+        f'"{brand} {model}" "{dica_gamme}" {market_year_query} {market_term} occasion',
+        f'"{brand} {model}" "{dica_gamme}" {market_year_query} "{km} km" {market_term} occasion',
+        f'"{brand} {model}" "{dica_gamme}" {market_year_query} prix occasion',
+        f'site:leboncoin.fr "{brand} {model}" {market_year_query} {market_term}',
+        f'site:annonces-caravaning.com "{brand} {model}" {market_year_query} {market_term}',
+        f'site:camping-car.com/occasion/annonces "{brand} {model}" {market_year_query} {market_term}',
+        f'site:campingcarannonces.com "{brand} {model}" {market_year_query} {market_term}',
+        f'site:paruvendu.fr "{brand} {model}" {market_year_query} camping-car occasion'
     ]
+    # Recherche large dédiée aux candidats manuels : la finition DICA n'est
+    # volontairement pas imposée. C'est indispensable pour retrouver les
+    # annonces qui écrivent simplement « Challenger 328 ».
+    queries.extend([
+        f'site:leboncoin.fr "{brand} {model}" {market_year_query}',
+        f'site:leboncoin.fr "{brand}" "{model}" {market_year_query} km',
+        f'"{brand} {model}" {market_year_query} {market_term} occasion',
+        f'"{brand}" "{model}" {market_year_query} prix {market_term}'
+    ])
     # Si une gamme DICA précise existe, on ajoute aussi les écritures
     # utilisées par les sites d'annonces : « Graphite Premium » par exemple.
     if dica_gamme:
-        queries.append(f'"{brand} {model}" "{dica_gamme}" {year} {market_term} occasion')
+        queries.append(f'"{brand} {model}" "{dica_gamme}" {market_year_query} {market_term} occasion')
         gamme_search = re.sub(r"\bedition\b", "", str(dica_gamme), flags=re.I)
         gamme_search = re.sub(r"[-–—]", " ", gamme_search)
         gamme_search = re.sub(r"\s+", " ", gamme_search).strip()
         if gamme_search and norm(gamme_search) != norm(dica_gamme):
-            queries.append(f'"{brand} {model}" "{gamme_search}" {year} {market_term} occasion')
+            queries.append(f'"{brand} {model}" "{gamme_search}" {market_year_query} {market_term} occasion')
         gamme_short = re.sub(r"\b"+re.escape(str(model).strip())+r"\b", "", gamme_search, flags=re.I)
         gamme_short = re.sub(r"\s+", " ", gamme_short).strip(" -–—")
         if gamme_short:
-            queries.append(f'"{brand} {model}" "{gamme_short}" {year} {market_term} occasion')
-            queries.append(f'"{brand} {model} {gamme_short}" {year} {market_term} occasion')
-            queries.append(f'"{brand} {model}" {year} "{km} km" "{gamme_short}" {market_term}')
+            queries.append(f'"{brand} {model}" "{gamme_short}" {market_year_query} {market_term} occasion')
+            queries.append(f'"{brand} {model} {gamme_short}" {market_year_query} {market_term} occasion')
+            queries.append(f'"{brand} {model}" {market_year_query} "{km} km" "{gamme_short}" {market_term}')
     if dica_gamme:
         queries.extend([
-            f'"{brand} {model}" {year} {market_term} occasion -"Start Edition" -"Etape Edition"',
-            f'"{brand} {model}" {year} {market_term} occasion -"Start Edition" -"Etape Edition" -"Graphite"'
+            f'"{brand} {model}" {market_year_query} {market_term} occasion -"Start Edition" -"Etape Edition"',
+            f'"{brand} {model}" {market_year_query} {market_term} occasion -"Start Edition" -"Etape Edition" -"Graphite"'
         ])
     queries=list(dict.fromkeys(queries))
     # Déduplication des requêtes pour ne pas gaspiller les appels Serper.
@@ -1465,13 +1480,13 @@ def cote():
         if not price or is_new(r) or is_unavailable(r): continue
         if model_match_score(txt,model)<=0: continue
         yrs=extract_years(txt)
-        if yrs and year not in yrs: continue
+        if yrs and not any(y in market_years for y in yrs): continue
         # Sélection manuelle : on laisse aussi passer une annonce dont le
         # kilométrage n'est pas présent dans le résultat de recherche.
         # Le vendeur pourra l'ouvrir et décider lui-même si elle correspond.
         s=score_result(r,brand,model,year,km,hp,transmission,dica_gamme,category)
         manual_candidates.append({"url":r.get("link"),"title":r.get("title",""),"snippet":r.get("snippet",""),
-          "price":price,"km":rkm,"year":year if year in yrs else (yrs[0] if yrs else None),"score":round(s),
+          "price":price,"km":rkm,"year":(next((y for y in yrs if y in market_years), None) if yrs else None),"score":round(s),
           "km_pending":rkm is None,
           "source_domain":re.sub(r"^www\.","",requests.utils.urlparse(str(r.get("link",""))).netloc.lower())})
     _seen_mc=set(); _mc=[]
@@ -1528,6 +1543,10 @@ def cote():
         for r in dedup.values():
             if str(r.get("link","")).strip() not in selected_urls: continue
             price,rkm=parse_price_km(r,year,km)
+            selected_text=f"{r.get('title','')} {r.get('snippet','')}"
+            selected_years=extract_years(selected_text)
+            if selected_years and not any(y in market_years for y in selected_years):
+                continue
             # Si le vendeur a volontairement sélectionné une annonce affichée
             # sans kilométrage, on tente alors une lecture de sa fiche détail.
             # Cela permet d'utiliser le kilométrage réellement affiché sur
