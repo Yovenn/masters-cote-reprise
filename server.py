@@ -1401,10 +1401,7 @@ def collecte_diagnostic():
                     compact_model=re.sub(r"\\s+","",model_norm)
                     if compact_model not in re.sub(r"\\s+","",combined_title):
                         return None
-                if model_norm and model_norm not in combined_title:
                 page_years=extract_years(page_title)
-                if year not in page_years:
-                    return None
                 if year not in page_years:
                     return None
 
