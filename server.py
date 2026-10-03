@@ -1371,16 +1371,17 @@ def cote():
     for r in dedup.values():
         price,rkm=parse_price_km(r,year,km)
         txt=f"{r.get('title','')} {r.get('snippet','')}"
-        if not price or rkm is None or is_new(r) or is_unavailable(r): continue
+        if not price or is_new(r) or is_unavailable(r): continue
         if model_match_score(txt,model)<=0: continue
         yrs=extract_years(txt)
         if yrs and year not in yrs: continue
-        # Pour la sélection manuelle, on ne demande PAS la finition exacte
-        # ni un score élevé : l'utilisateur doit justement pouvoir voir les
-        # variantes proches et décider lui-même de la correspondance.
+        # Sélection manuelle : on laisse aussi passer une annonce dont le
+        # kilométrage n'est pas présent dans le résultat de recherche.
+        # Le vendeur pourra l'ouvrir et décider lui-même si elle correspond.
         s=score_result(r,brand,model,year,km,hp,transmission,dica_gamme,category)
         manual_candidates.append({"url":r.get("link"),"title":r.get("title",""),"snippet":r.get("snippet",""),
           "price":price,"km":rkm,"year":year if year in yrs else (yrs[0] if yrs else None),"score":round(s),
+          "km_pending":rkm is None,
           "source_domain":re.sub(r"^www\.","",requests.utils.urlparse(str(r.get("link",""))).netloc.lower())})
     _seen_mc=set(); _mc=[]
     for x in sorted(manual_candidates,key=lambda x:(x["score"],-abs(x["km"]-km)),reverse=True):
@@ -1431,6 +1432,20 @@ def cote():
         for r in dedup.values():
             if str(r.get("link","")).strip() not in selected_urls: continue
             price,rkm=parse_price_km(r,year,km)
+            # Si le vendeur a volontairement sélectionné une annonce affichée
+            # sans kilométrage, on tente alors une lecture de sa fiche détail.
+            # Cela permet d'utiliser le kilométrage réellement affiché sur
+            # l'annonce sans l'imposer au vendeur lors du premier tri.
+            if price and rkm is None and not r.get("_detail"):
+                try:
+                    refreshed=scrape_candidate(r)
+                    if refreshed:
+                        rr,detail=refreshed
+                        r.update(rr)
+                        r["_detail"]=detail
+                        price,rkm=parse_price_km(r,year,km)
+                except Exception:
+                    pass
             if not price or rkm is None or is_new(r) or is_unavailable(r): continue
             if category=="poids_lourd":
                 ref_km,over_rate,under_rate=poids_lourd_km_rules(f"{r.get('title','')} {r.get('snippet','')}")
