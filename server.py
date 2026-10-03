@@ -935,7 +935,7 @@ def price_associated_year(r, price, target_year, target_km=None):
     pos=price_positions[0]
     if len(price_positions)>1 and target_km is not None:
         km_positions=[]
-        for m in re.finditer(r"\b(\\d{1,3}(?:[ .]\\d{3})|\\d{3,6})\s*km\\b",text.lower()):
+        for m in re.finditer(r"\b(\d{1,3}(?:[ .]\d{3})|\d{3,6})\s*km\b",text.lower()):
             try:
                 kv=clean_num(m.group(1))
             except ValueError:
@@ -973,14 +973,14 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
         return None
     def fragment_year(text, value):
         if value is None: return None
-        m=re.search(rf"\\b{int(value)}\\b",text or "")
+        m=re.search(rf"\b{int(value)}\b",text or "")
         return m.group(0) if m else None
     def around(text, needle, radius=90):
         if not needle: return None
         pos=(text or "").lower().find(needle.lower())
         if pos<0: return None
         a=max(0,pos-radius); b=min(len(text),pos+len(needle)+radius)
-        return re.sub(r"\\s+"," ",(text or "")[a:b]).strip()
+        return re.sub(r"\s+"," ",(text or "")[a:b]).strip()
     price,rkm=parse_price_km(r,year,target_km)
     price_ev=fragment_price(text_price,price) or fragment_price(source_text,price)
     km_ev=fragment_km(text_price,rkm) or fragment_km(source_text,rkm)
@@ -990,9 +990,9 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
     if dica_gamme:
         finish_ev=around(source_text,dica_gamme)
         if not finish_ev and finish_alias_match(source_text,dica_gamme,model):
-            finish_ev=around(source_text,re.sub(r"\\bedition\\b","",str(dica_gamme),flags=re.I).strip())
+            finish_ev=around(source_text,re.sub(r"\bedition\b","",str(dica_gamme),flags=re.I).strip())
         if not finish_ev and detail.get("title") and finish_alias_match(str(detail.get("title")),dica_gamme,model):
-            finish_ev=around(str(detail.get("title")),re.sub(r"\\bedition\\b","",str(dica_gamme),flags=re.I).strip())
+            finish_ev=around(str(detail.get("title")),re.sub(r"\bedition\b","",str(dica_gamme),flags=re.I).strip())
     fields={
         "prix": bool(price_ev), "kilometrage": bool(km_ev), "annee": bool(year_ev),
         "modele": bool(model_ev), "finition": (not dica_gamme) or bool(finish_ev)
@@ -1324,7 +1324,7 @@ def cote():
         if detail_year is not None and detail_year!=year:
             return None
         if model and norm(model) not in norm(detail_title):
-            compact_model=norm(re.sub(r"(?<=[A-Za-z])(?=\\d)|(?<=\\d)(?=[A-Za-z])"," ",model))
+            compact_model=norm(re.sub(r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])"," ",model))
             if compact_model not in norm(detail_title):
                 return None
 
