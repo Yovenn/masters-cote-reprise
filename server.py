@@ -861,11 +861,9 @@ def score_result(r,brand,model,year,target_km,hp=None,transmission=None,dica_gam
     if model_score<=0:
         return 0
     score+=model_score
-    if dica_gamme:
-        gamme_score=dica_gamme_score(text,brand,model,year,dica_gamme,category)
-        if gamme_score<0:
-            return 0
-        score+=gamme_score
+    # La finition DICA ne sert PAS à filtrer le marché.
+    # Les annonces sont recherchées sur marque + modèle + année + catégorie.
+    # La finition reste uniquement une information de référence DICA.
     if re.search(rf"\b{re.escape(str(year))}\b",low): score+=20
     ks=extract_kms(text)
     if ks:
@@ -1119,15 +1117,9 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     if is_aggregation(r): score-=10
     if score<65: return None
 
-    # Une annonce ne devient COMPARABLE automatique que si la finition DICA
-    # demandée est réellement prouvée dans cette même annonce.
-    # Une annonce sans finition reste disponible dans la sélection manuelle,
-    # mais ne doit plus apparaître comme comparable qualifié.
-    if dica_gamme:
-        ev=evidence_for_result(r,brand,model,year,target_km,dica_gamme)
-        if not bool((ev.get("finition") or {}).get("ok")):
-            return None
-
+    # Aucun filtre de finition ici : une annonce peut être comparable même
+    # si son titre ne précise pas la finition. La validation de la version
+    # exacte reste du ressort du vendeur lors de la sélection manuelle.
     adjusted=price; km_adjustment=0
     if rkm is not None:
         if category=="poids_lourd":
@@ -1319,48 +1311,20 @@ def cote():
             model_variants.append(mv)
     # Recherche volontairement courte : on privilégie quelques requêtes très ciblées
     # plutôt qu'une longue série d'appels Serper séquentiels.
-    queries=[
-        f'"{brand} {model}" "{dica_gamme}" {market_year_query} {market_term} occasion',
-        f'"{brand} {model}" "{dica_gamme}" {market_year_query} "{km} km" {market_term} occasion',
-        f'"{brand} {model}" "{dica_gamme}" {market_year_query} prix occasion',
-        f'site:leboncoin.fr "{brand} {model}" {market_year_query} {market_term}',
-        f'site:annonces-caravaning.com "{brand} {model}" {market_year_query} {market_term}',
-        f'site:camping-car.com/occasion/annonces "{brand} {model}" {market_year_query} {market_term}',
-        f'site:campingcarannonces.com "{brand} {model}" {market_year_query} {market_term}',
-        f'site:paruvendu.fr "{brand} {model}" {market_year_query} camping-car occasion'
-    ]
-    # Recherche large dédiée aux candidats manuels : la finition DICA n'est
-    # volontairement pas imposée. C'est indispensable pour retrouver les
-    # annonces qui écrivent simplement « Challenger 328 ».
-    queries.extend([
-        f'site:leboncoin.fr "{brand} {model}" {market_year_query}',
-        f'site:leboncoin.fr "{brand}" "{model}" {market_year_query} km',
+    # Recherche marché volontairement large :
+    # marque + modèle + année, sans imposer la finition DICA.
+    # Les deux années sont recherchées séparément.
+    base_queries=[
         f'"{brand} {model}" {market_year_query} {market_term} occasion',
-        f'"{brand}" "{model}" {market_year_query} prix {market_term}'
-    ])
-    # Si une gamme DICA précise existe, on ajoute aussi les écritures
-    # utilisées par les sites d'annonces : « Graphite Premium » par exemple.
-    if dica_gamme:
-        queries.append(f'"{brand} {model}" "{dica_gamme}" {market_year_query} {market_term} occasion')
-        gamme_search = re.sub(r"\bedition\b", "", str(dica_gamme), flags=re.I)
-        gamme_search = re.sub(r"[-–—]", " ", gamme_search)
-        gamme_search = re.sub(r"\s+", " ", gamme_search).strip()
-        if gamme_search and norm(gamme_search) != norm(dica_gamme):
-            queries.append(f'"{brand} {model}" "{gamme_search}" {market_year_query} {market_term} occasion')
-        gamme_short = re.sub(r"\b"+re.escape(str(model).strip())+r"\b", "", gamme_search, flags=re.I)
-        gamme_short = re.sub(r"\s+", " ", gamme_short).strip(" -–—")
-        if gamme_short:
-            queries.append(f'"{brand} {model}" "{gamme_short}" {market_year_query} {market_term} occasion')
-            queries.append(f'"{brand} {model} {gamme_short}" {market_year_query} {market_term} occasion')
-            queries.append(f'"{brand} {model}" {market_year_query} "{km} km" "{gamme_short}" {market_term}')
-    if dica_gamme:
-        queries.extend([
-            f'"{brand} {model}" {market_year_query} {market_term} occasion -"Start Edition" -"Etape Edition"',
-            f'"{brand} {model}" {market_year_query} {market_term} occasion -"Start Edition" -"Etape Edition" -"Graphite"'
-        ])
-    # Chaque requête est exécutée séparément pour l'année cible et l'année
-    # suivante. Ainsi une annonce 2022 n'a jamais besoin de contenir « 2023 ».
-    queries = queries + [q.replace(str(year), str(year+1)) for q in queries]
+        f'"{brand} {model}" {market_year_query} prix occasion',
+        f'site:leboncoin.fr "{brand} {model}" {market_year_query}',
+        f'site:annonces-caravaning.com "{brand} {model}" {market_year_query} {market_term}',
+        f'site:camping-car.com/occasion/annonces "{brand} {model}" {market_year_query}',
+        f'site:campingcarannonces.com "{brand} {model}" {market_year_query}',
+        f'site:paruvendu.fr "{brand} {model}" {market_year_query} camping-car occasion',
+        f'"{brand}" "{model}" {market_year_query} {market_term}'
+    ]
+    queries=base_queries
     queries=list(dict.fromkeys(queries))
     # Déduplication des requêtes pour ne pas gaspiller les appels Serper.
     queries=list(dict.fromkeys(queries))
