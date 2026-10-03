@@ -160,7 +160,9 @@ async function go(selectedUrls,selectedAds){const status=document.getElementById
     Object.keys(stats).forEach(function(k){var x=stats[k];h+='<div class="comp"><b>'+k+'</b><br><span class="small">'+x.annonces+' annonces · '+x.prix+' prix · '+x.km+' km · '+x.annee+' années</span></div>'});
     h+='<h3 style="margin-top:18px">Annonces collectées</h3>';
     (d.annonces||[]).forEach(function(x){
-      h+='<div class="comp"><b>'+(x.price!==null?euro(x.price):'Prix non trouvé')+'</b> — '+(x.km!==null?Number(x.km).toLocaleString('fr-FR')+' km':'km non trouvé')+' — '+(x.year||'année non trouvée')+'<br><b>'+String(x.title||'')+'</b><br><span class="small">'+(x.source_domain||'source inconnue')+'</span><br><span class="small">'+String(x.snippet||'')+'</span><br><a target="_blank" rel="noopener" href="'+x.url+'">Voir l’annonce</a></div>';
+      var ps=x.price_source||'non confirmé';
+      var psLabel={fiche_detail:'Fiche actuelle',jsonld_direct:'Fiche actuelle · JSON-LD',meta_direct:'Fiche actuelle · meta',next_data_direct:'Fiche actuelle · données internes',serper_same_url:'Résultat recherche · même URL',resultat_recherche:'Résultat de recherche'}[ps]||ps;
+      h+='<div class="comp"><b>'+(x.price!==null?euro(x.price):'Prix non trouvé')+'</b> — '+(x.km!==null?Number(x.km).toLocaleString('fr-FR')+' km':'km non trouvé')+' — '+(x.year||'année non trouvée')+'<br><b>'+String(x.title||'')+'</b><br><span class="small">'+(x.source_domain||'source inconnue')+' · Prix : '+psLabel+'</span><br><span class="small">'+String(x.snippet||'')+'</span><br><a target="_blank" rel="noopener" href="'+x.url+'">Voir l’annonce</a></div>';
     });
     if(!(d.annonces||[]).length)h+='<div class="warning">Aucune annonce récupérée. Le problème est donc bien au niveau de la collecte/recherche.</div>';
     h+='</div>';box.innerHTML=h;
