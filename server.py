@@ -1360,6 +1360,94 @@ def collecte_diagnostic():
             "raw_km":raw_kms[0] if raw_kms else None
         })
 
+    # Dernier niveau LBC : lecture directe de la fiche elle-même.
+    # Certaines annonces exposent le prix dans JSON-LD/meta alors que le
+    # résultat Serper et le parseur de carte ne l'affichent pas. On ne lit
+    # jamais une autre URL : le prix est accepté uniquement depuis cette fiche.
+    missing_direct=[x for x in rows if x.get("source_domain")=="leboncoin.fr" and x.get("price") is None]
+    if missing_direct:
+        def recover_lbc_page(row):
+            url=str(row.get("url","") or "").strip()
+            if not url:
+                return None
+            try:
+                resp=requests.get(url,headers={"User-Agent":"Mozilla/5.0 (compatible; MastersCoteReprise/1.2)"},timeout=8,allow_redirects=True)
+                if resp.status_code!=200 or not resp.text:
+                    return None
+                html=resp.text
+                if not SELECTOLAX_AVAILABLE:
+                    return None
+                tree=LexborHTMLParser(html)
+                title_node=tree.css_first("title")
+                page_title=re.sub(r"\\s+"," ",title_node.text(separator=" ",strip=True)).strip() if title_node else ""
+                combined_title=norm(page_title+" "+str(row.get("title","") or ""))
+                if model_norm and model_norm not in combined_title:
+                    compact_model=re.sub(r"\\s+","",model_norm)
+                    if compact_model not in re.sub(r"\\s+","",combined_title):
+                        return None
+                page_years=extract_years(page_title+" "+str(row.get("title","") or ""))
+                if year not in page_years:
+                    return None
+
+                # 1) JSON-LD Offer.price
+                for node in tree.css('script[type="application/ld+json"]'):
+                    try:
+                        data=json.loads(unescape(node.text()))
+                    except Exception:
+                        continue
+                    stack=data if isinstance(data,list) else [data]
+                    while stack:
+                        obj=stack.pop()
+                        if isinstance(obj,list):
+                            stack.extend(obj); continue
+                        if not isinstance(obj,dict):
+                            continue
+                        offers=obj.get("offers")
+                        if isinstance(offers,dict):
+                            offers=[offers]
+                        if isinstance(offers,list):
+                            for offer in offers:
+                                if not isinstance(offer,dict):
+                                    continue
+                                p=offer.get("price")
+                                if p is None:
+                                    continue
+                                try:
+                                    pv=clean_num(p)
+                                except Exception:
+                                    continue
+                                if 10000<=pv<=150000:
+                                    return pv,"jsonld_direct"
+                        stack.extend(v for v in obj.values() if isinstance(v,(dict,list)))
+
+                # 2) Meta produit : même fiche, même URL.
+                for sel in ('meta[property="product:price:amount"]','meta[itemprop="price"]','meta[name="price"]'):
+                    node=tree.css_first(sel)
+                    if node:
+                        raw=str(node.attributes.get("content","") or node.attributes.get("value","") or "").strip()
+                        try:
+                            pv=clean_num(raw)
+                            if 10000<=pv<=150000:
+                                return pv,"meta_direct"
+                        except Exception:
+                            pass
+            except Exception:
+                return None
+            return None
+
+        with ThreadPoolExecutor(max_workers=min(5,len(missing_direct))) as pool:
+            futs={pool.submit(recover_lbc_page,x):x for x in missing_direct}
+            for fut in as_completed(futs):
+                row=futs[fut]
+                try:
+                    recovered=fut.result()
+                except Exception:
+                    recovered=None
+                if recovered:
+                    row["price"]=recovered[0]
+                    row["price_source"]=recovered[1]
+                    row["price_recovered"]=True
+
     # Leboncoin charge souvent le prix en JavaScript : le HTML de la fiche
     # est alors accessible mais ne contient pas le prix. On fait une seconde
     # recherche Serper ciblée sur LE TITRE + LE KM et on n'accepte le prix que
