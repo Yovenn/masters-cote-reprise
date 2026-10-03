@@ -1472,9 +1472,15 @@ def collecte_diagnostic():
         def recover_lbc(row):
             title=str(row.get("title","") or "").strip()
             km=row.get("km")
-            if not title or km is None:
+            if not title:
                 return None
-            q=f'site:leboncoin.fr/ad/ "{title}" "{int(km)} km" prix'
+            # Recherche ciblée sur le titre de CETTE annonce. Le km est ajouté
+            # lorsqu'il est connu, mais son absence ne doit pas empêcher la
+            # récupération du prix.
+            q=f'site:leboncoin.fr/ad/ "{title}"'
+            if km is not None:
+                q += f' "{int(km)} km"'
+            q += " prix"
             try:
                 resp=requests.post(
                     "https://google.serper.dev/search",
