@@ -978,7 +978,53 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
             if rkm>target_km: km_adjustment=round((rkm-target_km)*DICA_OVER_KM_RATE)
             elif rkm<target_km: km_adjustment=-round((target_km-rkm)*DICA_UNDER_KM_RATE)
         adjusted=price+km_adjustment
-    return {"title":r.get("title"),"url":r.get("link"),"snippet":r.get("snippet"),"price":price,"km":rkm,"adjusted":round(adjusted),"km_adjustment":km_adjustment,"score":round(score),"source":r.get("source",""),"transmission":extract_transmission(text)}
+
+    # Indice de fiabilité de la donnée utilisée pour la cote.
+    # Il mesure la complétude de LA MÊME annonce, pas la popularité du site.
+    detail=r.get("_detail") or {}
+    source_text=f"{r.get('title','')} {r.get('snippet','')}"
+    source_years=extract_years(source_text)
+    source_kms=extract_kms(source_text)
+    source_prices=extract_prices(source_text)
+    fields={
+        "prix": bool(price),
+        "kilometrage": rkm is not None,
+        "annee": year in source_years or (detail.get("year")==year),
+        "modele": model_match_score(source_text,model)>0 or (model and model_match_score(str(detail.get("title","")),model)>0),
+        "finition": (not dica_gamme) or dica_gamme_score(source_text,brand,model,year,dica_gamme,category)>=0 or finish_alias_match(source_text,dica_gamme,model)
+    }
+    complete=sum(1 for v in fields.values() if v)
+    if detail:
+        provenance="fiche_detail_verifiee"
+    elif complete>=5:
+        provenance="annonce_complete_source"
+    elif complete>=4:
+        provenance="annonce_partielle"
+    else:
+        provenance="resultat_recherche"
+
+    if provenance=="fiche_detail_verifiee" and complete>=5:
+        reliability="A"
+    elif provenance=="annonce_complete_source":
+        reliability="A"
+    elif complete>=4:
+        reliability="B"
+    else:
+        reliability="C"
+
+    try:
+        source_domain=re.sub(r"^www\\.","",requests.utils.urlparse(str(r.get("link",""))).netloc.lower())
+    except Exception:
+        source_domain=""
+
+    return {
+        "title":r.get("title"),"url":r.get("link"),"snippet":r.get("snippet"),
+        "price":price,"km":rkm,"adjusted":round(adjusted),"km_adjustment":km_adjustment,
+        "score":round(score),"source":r.get("source",""),"source_domain":source_domain,
+        "transmission":extract_transmission(text),"reliability":reliability,
+        "provenance":provenance,"fields_verified":[k for k,v in fields.items() if v],
+        "complete_fields":complete
+    }
 @app.get("/")
 def home(): return send_from_directory("static","index.html")
 @app.get("/api/dica/catalog")
@@ -1282,7 +1328,7 @@ def cote():
             "experimental_recalage_factor":DICA_RECALAGE_FACTOR,
             "experimental_market_gap":None,
             "experimental_professional_value":experimental_professional_value,
-            "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback},
+            "quality":{"comparables":len(values),"km_comparables":len(values),"sans_km":len(context),"atypiques":0,"transmission_fallback":transmission_fallback,"fiabilite_A":sum(1 for x in primary if x.get("reliability")=="A"),"fiabilite_B":sum(1 for x in primary if x.get("reliability")=="B"),"sources":sorted({x.get("source_domain") for x in primary if x.get("source_domain")})},
             "message":"Marché insuffisant : le moteur n'a pas encore trouvé 3 comparables qualifiés. Aucune recherche secondaire n'est lancée."
         })
     med=statistics.median(values)
@@ -1330,5 +1376,5 @@ def cote():
     if len(dica)==1:
         experimental_market_gap=round(market-dica[0]["revente_corrigee"])
         experimental_professional_value=round(dica[0]["reprise_corrigee"])
-    return jsonify({"status":"ok","category":category,"ptac":ptac,"category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),"comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"transmission":transmission,"transmission_fallback":transmission_fallback,"transmission_counts":transmission_counts,"transmission_gap":transmission_gap,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_ambiguous":len(dica)>1,"dica_near":dica_near,"quality":{"comparables":len(filtered),"atypiques":len(excluded_values),"transmission_fallback":transmission_fallback,"km_comparables":sum(1 for x in primary if x.get("km") is not None),"sans_km":len(context)},"experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":experimental_market_gap,"experimental_professional_value":experimental_professional_value,"accessories":option_details,"accessories_value":options_total,"dica_reference_km":(dica[0]["reference_km"] if dica else (dica_near[0]["reference_km"] if dica_near else (None if category=="poids_lourd" else dica_ref_km(year, "V" if category=="van" else "F" if category=="fourgon" else None)))),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
+    return jsonify({"status":"ok","category":category,"ptac":ptac,"category_label":("Van aménagé" if category=="van" else "Fourgon aménagé" if category=="fourgon" else "Camping-car poids lourd" if category=="poids_lourd" else "Camping-car"),"comparables":primary,"context":context[:5],"market":market,"market_low":market_low,"market_high":market_high,"search_time":search_time,"fiscal_cv":cv,"horsepower":hp,"transmission":transmission,"transmission_fallback":transmission_fallback,"transmission_counts":transmission_counts,"transmission_gap":transmission_gap,"trade":max(0,market-MASTERS_FRAIS),"masters_frais":MASTERS_FRAIS,"confidence":confidence,"count":len(filtered),"excluded_count":len(excluded_values),"dica":dica,"dica_ambiguous":len(dica)>1,"dica_near":dica_near,"quality":{"comparables":len(filtered),"atypiques":len(excluded_values),"transmission_fallback":transmission_fallback,"km_comparables":sum(1 for x in primary if x.get("km") is not None),"sans_km":len(context),"fiabilite_A":sum(1 for x in primary if x.get("reliability")=="A"),"fiabilite_B":sum(1 for x in primary if x.get("reliability")=="B"),"sources":sorted({x.get("source_domain") for x in primary if x.get("source_domain")})},"experimental_recalage_factor":DICA_RECALAGE_FACTOR,"experimental_market_gap":experimental_market_gap,"experimental_professional_value":experimental_professional_value,"accessories":option_details,"accessories_value":options_total,"dica_reference_km":(dica[0]["reference_km"] if dica else (dica_near[0]["reference_km"] if dica_near else (None if category=="poids_lourd" else dica_ref_km(year, "V" if category=="van" else "F" if category=="fourgon" else None)))),"dica_edition":"Cote Officielle de l’Occasion n°32 — janvier à avril 2026"})
 if __name__=="__main__": app.run(host="0.0.0.0",port=int(os.environ.get("PORT","8080")))
