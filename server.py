@@ -1111,7 +1111,11 @@ def cote():
         f'"{brand} {model}" "{dica_gamme}" {year} {market_term} occasion',
         f'"{brand} {model}" "{dica_gamme}" {year} "{km} km" {market_term} occasion',
         f'"{brand} {model}" "{dica_gamme}" {year} prix occasion',
-        f'site:leboncoin.fr "{brand} {model}" "{dica_gamme}" {year} {market_term}'
+        f'site:leboncoin.fr "{brand} {model}" "{dica_gamme}" {year} {market_term}',
+        f'site:annonces-caravaning.com "{brand} {model}" {year} {market_term}',
+        f'site:camping-car.com/occasion/annonces "{brand} {model}" {year} {market_term}',
+        f'site:campingcarannonces.com "{brand} {model}" {year} {market_term}',
+        f'site:paruvendu.fr "{brand} {model}" {year} camping-car occasion'
     ]
     # Si une gamme DICA précise existe, on ajoute aussi les écritures
     # utilisées par les sites d'annonces : « Graphite Premium » par exemple.
@@ -1187,12 +1191,30 @@ def cote():
             detail_candidates.append((prelim+bonus,r))
 
     detail_candidates.sort(key=lambda x:x[0],reverse=True)
-    # 80 pages maximum : suffisamment large pour ne plus rater une annonce
-    # pertinente cachée derrière plusieurs résultats de recherche, tout en
-    # gardant un temps de réponse raisonnable.
+    # Jusqu'à 24 fiches incomplètes peuvent être vérifiées. Les résultats
+    # déjà complets (prix + km + année + identité) ne sont pas ouverts :
+    # ils constituent la donnée source la plus sûre et évitent les mélanges
+    # de fiches catalogue.
     # Scraping des pages détail en parallèle : les requêtes HTTP restent rapides
     # et on évite de bloquer 10 fois 6 secondes l'une après l'autre.
     def scrape_candidate(r):
+        source_text=f"{r.get('title','')} {r.get('snippet','')}"
+        source_prices=extract_prices(source_text)
+        source_kms=extract_kms(source_text)
+        source_years=extract_years(source_text)
+        source_complete=(
+            bool(source_prices)
+            and bool(source_kms)
+            and year in source_years
+            and score_result(r,brand,model,year,km,hp,transmission,dica_gamme,category)>=65
+        )
+
+        # Une ligne de résultat complète et cohérente est déjà une annonce exploitable.
+        # On ne l'écrase PAS avec une page détail qui pourrait être une fiche
+        # différente, un véhicule voisin ou une ancienne version du stock.
+        if source_complete:
+            return None
+
         detail=fetch_detail_price_km(r,year,model,km,dica_gamme)
         if not detail or not detail.get("price"):
             return None
@@ -1201,25 +1223,32 @@ def cote():
         if detail_year is not None and detail_year!=year:
             return None
         if model and norm(model) not in norm(detail_title):
-            compact_model=norm(re.sub(r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])"," ",model))
+            compact_model=norm(re.sub(r"(?<=[A-Za-z])(?=\\d)|(?<=\\d)(?=[A-Za-z])"," ",model))
             if compact_model not in norm(detail_title):
                 return None
 
-        # Garde-fou : si Serper a déjà donné un kilométrage, la page détail
-        # doit confirmer le même véhicule. Sinon on refuse le détail et on
-        # conserve la donnée source de recherche.
-        snippet_kms=extract_kms(f"{r.get('title','')} {r.get('snippet','')}")
-        detail_km=detail.get("km")
-        if snippet_kms:
+        # Garde-fou kilométrage : le détail doit confirmer le véhicule annoncé
+        # par la source, sinon le résultat source reste prioritaire.
+        if source_kms:
+            detail_km=detail.get("km")
             if detail_km is None:
                 return None
-            nearest=min(snippet_kms,key=lambda x:abs(x-int(detail_km)))
+            nearest=min(source_kms,key=lambda x:abs(x-int(detail_km)))
             if abs(nearest-int(detail_km))>250:
                 return None
+
+        # Garde-fou prix : si la source donne déjà un prix, un détail très
+        # différent ne doit jamais remplacer silencieusement ce prix.
+        if source_prices and detail.get("price"):
+            source_price=min(source_prices,key=lambda p:abs(p-int(detail.get("price"))))
+            detail_price=int(detail["price"])
+            if abs(detail_price-source_price)>max(3000,round(source_price*0.08)):
+                return None
+
         return r,detail
 
     with ThreadPoolExecutor(max_workers=6) as pool:
-        futures=[pool.submit(scrape_candidate,r) for _,r in detail_candidates[:8]]
+        futures=[pool.submit(scrape_candidate,r) for _,r in detail_candidates[:24]]
         for fut in as_completed(futures):
             try:
                 result=fut.result()
