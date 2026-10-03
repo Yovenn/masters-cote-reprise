@@ -477,6 +477,97 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
         "url":browser_url
     }
 
+def fetch_selected_ad_data(r, target_year=None, target_model=None):
+    """Récupère le kilométrage d'une annonce choisie manuellement, même si
+    le résultat Serper initial ne l'affichait pas.
+    
+    Pour une sélection manuelle, on assouplit la finition : le vendeur a déjà
+    validé visuellement l'annonce. On exige néanmoins que la fiche identifie
+    bien le modèle et l'année recherchés avant d'utiliser son kilométrage.
+    """
+    url=str(r.get("link","") or "").strip()
+    if not url or not url.startswith(("http://","https://")) or not SELECTOLAX_AVAILABLE:
+        return None
+    try:
+        resp=requests.get(
+            url,
+            headers={"User-Agent":"Mozilla/5.0 (compatible; MastersCoteReprise/1.2)"},
+            timeout=7,
+            allow_redirects=True
+        )
+        if resp.status_code != 200 or not resp.text:
+            return None
+    except requests.RequestException:
+        return None
+    try:
+        tree=LexborHTMLParser(resp.text)
+    except Exception:
+        return None
+
+    def txt(node):
+        try:
+            return re.sub(r"\s+"," ",node.text(separator=" ",strip=True)).strip()
+        except Exception:
+            return ""
+
+    title=txt(tree.css_first("title")) if tree.css_first("title") else ""
+    h1=txt(tree.css_first("h1")) if tree.css_first("h1") else ""
+    meta_desc=""
+    md=tree.css_first('meta[name="description"]')
+    if md:
+        try: meta_desc=str(md.attributes.get("content","") or "")
+        except Exception: pass
+    og_title=""
+    og=tree.css_first('meta[property="og:title"]')
+    if og:
+        try: og_title=str(og.attributes.get("content","") or "")
+        except Exception: pass
+
+    focused=" ".join(x for x in (title,h1,meta_desc,og_title) if x)
+    model_norm=norm(target_model or "")
+    if model_norm and model_norm not in norm(focused):
+        # Cherche ensuite une carte/bloc de détail qui porte explicitement
+        # modèle + année + kilométrage.
+        selectors=("article","main","[class*='detail']","[class*='Detail']",
+                   "[class*='vehicle']","[class*='Vehicle']","[class*='annonce']",
+                   "[class*='Annonce']","[class*='product']","[class*='Product']")
+        for node in tree.css(",".join(selectors)):
+            t=txt(node)
+            if not t or len(t)>12000 or model_norm not in norm(t):
+                continue
+            ys=extract_years(t); ks=extract_kms(t)
+            if ks and (target_year is None or target_year in ys or not ys):
+                focused=t
+                break
+    if model_norm and model_norm not in norm(focused):
+        return None
+    years=extract_years(focused)
+    if target_year is not None and years and target_year not in years:
+        return None
+    kms=extract_kms(focused)
+    if not kms:
+        # Dernier recours : petits blocs contenant explicitement "km" et le modèle.
+        for node in tree.css("h1,h2,h3,p,li,div,span"):
+            t=txt(node)
+            if not t or len(t)>1800 or model_norm and model_norm not in norm(t):
+                continue
+            ys=extract_years(t); ks=extract_kms(t)
+            if ks and (target_year is None or target_year in ys or not ys):
+                kms=ks
+                if years==[] and ys: years=ys
+                break
+    if not kms:
+        return None
+    prices=extract_prices(focused)
+    return {
+        "price":prices[0] if prices else None,
+        "km":kms[0],
+        "year":target_year if target_year in years else (years[0] if years else None),
+        "title":title or h1,
+        "source":"selection_detail",
+        "url":resp.url
+    }
+
 def parse_price_km(r, target_year=None, target_km=None):
     # Si la page détail a été consultée, son prix prime toujours sur le
     # prix extrait du snippet Google/Serper.
@@ -1443,12 +1534,35 @@ def cote():
             # l'annonce sans l'imposer au vendeur lors du premier tri.
             if price and rkm is None and not r.get("_detail"):
                 try:
-                    refreshed=scrape_candidate(r)
-                    if refreshed:
-                        rr,detail=refreshed
-                        r.update(rr)
-                        r["_detail"]=detail
+                    # Pour une annonce choisie manuellement, le vendeur a
+                    # validé la fiche. On tente donc une lecture directe du
+                    # titre/bloc de détail, sans exiger que la finition DICA
+                    # soit répétée mot pour mot dans le HTML.
+                    selected_detail=fetch_selected_ad_data(r,year,model)
+                    if selected_detail and selected_detail.get("km") is not None:
+                        r["_detail"]={
+                            "price": selected_detail.get("price") or price,
+                            "km": selected_detail.get("km"),
+                            "year": selected_detail.get("year"),
+                            "title": selected_detail.get("title") or r.get("title",""),
+                            "source": selected_detail.get("source","selection_detail"),
+                            "url": selected_detail.get("url") or r.get("link")
+                        }
                         price,rkm=parse_price_km(r,year,km)
+                    else:
+                        # Deuxième tentative avec le parseur détaillé existant,
+                        # toujours sans imposer le kilométrage cible.
+                        detail=fetch_detail_price_km(r,year,model,None,None)
+                        if detail and detail.get("km") is not None:
+                            r["_detail"]={
+                                "price": detail.get("price") or price,
+                                "km": detail.get("km"),
+                                "year": detail.get("year"),
+                                "title": detail.get("title") or r.get("title",""),
+                                "source": detail.get("source","detail"),
+                                "url": detail.get("url") or r.get("link")
+                            }
+                            price,rkm=parse_price_km(r,year,km)
                 except Exception:
                     pass
             # Une annonce cochée sans km reste sélectionnée mais ne peut entrer
