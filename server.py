@@ -718,7 +718,13 @@ def finish_alias_match(text, requested_gamme, model=""):
             continue
         otokens=[t for t in re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", og).encode("ascii","ignore").decode("ascii").lower())
                  if t not in model_tokens and t != "edition"]
-        if otokens and set(otokens)!=requested_finish_tokens and all(norm(t) in tn for t in otokens):
+        # On ne rejette que si l'autre finition apporte un terme
+        # réellement distinctif absent de la finition demandée.
+        # Exemple : « Graphite » seul est commun aux deux gammes et ne doit
+        # pas invalider « Graphite Premium » ; « Ultimate », lui, est distinct
+        # et doit provoquer le rejet.
+        other_distinct=set(otokens)-requested_finish_tokens
+        if other_distinct and all(norm(t) in tn for t in otokens):
             return False
 
     return all(norm(t) in tn for t in distinctive)
