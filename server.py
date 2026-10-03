@@ -688,7 +688,7 @@ def model_match_score(text,model):
     words=re.findall(r"[a-z0-9]+",compact_text)
     wanted=re.findall(r"[a-z0-9]+",norm(model))
     if model.isdigit():
-        return 48 if re.search(rf"(?<!\\d){re.escape(model)}(?!\\d)",raw) else 0
+        return 48 if re.search(rf"(?<!\d){re.escape(model)}(?!\d)",raw) else 0
     if compact in compact_text:
         return 48
     if len(wanted)>1 and all(w in words for w in wanted):
