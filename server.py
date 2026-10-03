@@ -996,7 +996,7 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
         return None
     def fragment_year(text, value):
         if value is None: return None
-        m=re.search(rf"\\b{int(value)}\\b",text or "")
+        m=re.search(rf"\b{int(value)}\b",text or "")
         return m.group(0) if m else None
     def around(text, needle, radius=90):
         if not needle: return None
@@ -1013,7 +1013,7 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
     if dica_gamme:
         finish_ev=around(source_text,dica_gamme)
         if not finish_ev and finish_alias_match(source_text,dica_gamme,model):
-            finish_ev=around(source_text,re.sub(r"\\bedition\\b","",str(dica_gamme),flags=re.I).strip())
+            finish_ev=around(source_text,re.sub(r"\bedition\b","",str(dica_gamme),flags=re.I).strip())
         if not finish_ev and detail.get("title") and finish_alias_match(str(detail.get("title")),dica_gamme,model):
             finish_ev=around(str(detail.get("title")),re.sub(r"\\bedition\\b","",str(dica_gamme),flags=re.I).strip())
     fields={
@@ -1074,7 +1074,12 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
     evidence=evidence_for_result(r,brand,model,year,target_km,dica_gamme)
     fields={k:bool(v.get("ok")) for k,v in evidence.items() if isinstance(v,dict) and "ok" in v}
     complete=sum(1 for v in fields.values() if v)
-    if is_aggregation(r) and complete < 5:
+    core_ok=all(fields.get(k,False) for k in ("prix","kilometrage","modele","finition"))
+    # Une page de résultats peut ne pas répéter l'année dans son extrait alors
+    # que prix + km + modèle + finition appartiennent bien au même véhicule.
+    # On accepte alors la ligne avec une fiabilité réduite, sans jamais accepter
+    # une année explicitement différente.
+    if is_aggregation(r) and not core_ok:
         return None
     if detail:
         provenance="fiche_detail_verifiee"
