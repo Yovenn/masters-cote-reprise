@@ -1384,7 +1384,7 @@ def cote():
           "km_pending":rkm is None,
           "source_domain":re.sub(r"^www\.","",requests.utils.urlparse(str(r.get("link",""))).netloc.lower())})
     _seen_mc=set(); _mc=[]
-    for x in sorted(manual_candidates,key=lambda x:(x["score"],-abs(x["km"]-km)),reverse=True):
+    for x in sorted(manual_candidates,key=lambda x:(x["score"],-abs((x.get("km") or km)-km)),reverse=True):
         if x["url"] and x["url"] not in _seen_mc: _seen_mc.add(x["url"]); _mc.append(x)
     # Si la recherche automatique a déjà produit des comparables, on les propose
     # aussi à la sélection manuelle : aucune annonce trouvée ne doit disparaître
