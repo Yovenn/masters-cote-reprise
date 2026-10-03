@@ -375,12 +375,21 @@ def fetch_detail_price_km(r, target_year=None, target_model=None, target_km=None
                         continue
                     kms=extract_kms(combined)
                     yrs=extract_years(combined)
-                    if not kms:
+                    # Sur une fiche individuelle, l'Offer JSON-LD porte souvent
+                    # le prix alors que le kilométrage est dans un autre bloc.
+                    # Le prix reste néanmoins rattaché à CETTE fiche : on peut
+                    # donc conserver l'Offer si elle identifie explicitement
+                    # le modèle et l'année. Le kilométrage pourra venir du
+                    # même document ou du résultat Serper de cette URL.
+                    identity_text=f"{name} {desc}"
+                    if model_norm and model_norm not in norm(identity_text):
+                        continue
+                    if target_year is not None and target_year not in yrs:
                         continue
                     add_candidate(
                         offer.get("price"),
-                        kms[0],
-                        yrs[0] if yrs else None,
+                        kms[0] if kms else None,
+                        yrs[0] if yrs else target_year,
                         combined,
                         "jsonld",
                         260
