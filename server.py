@@ -1262,8 +1262,14 @@ def collect_lbc_apify(brand, model, years, category="camping"):
                     if item not in (None,""): return item
         return None
     for y in years:
-        payload={"category":category_id,"text":f"{brand} {model}","year_min":int(y),"year_max":int(y),
-                 "sort":"newest","max_results":60,
+        # Utilise les filtres véhicule structurés de l'Actor (marque/modèle + année).
+        # Le filtre "text" reste en complément pour les variantes de libellé.
+        payload={"category":category_id,
+                 "vehicle_brand":str(brand).upper(),
+                 "vehicle_model":f"{brand}_{model}",
+                 "text":f"{brand} {model}",
+                 "year_min":int(y),"year_max":int(y),
+                 "sort":"newest","max_results":100,
                  "proxyConfiguration":{"useApifyProxy":True,"apifyProxyGroups":["RESIDENTIAL"],"apifyProxyCountry":"FR"}}
         try:
             resp=requests.post(endpoint,json=payload,
@@ -1286,18 +1292,32 @@ def collect_lbc_apify(brand, model, years, category="camping"):
         body=str(ad.get("body") or ad.get("description") or "").strip()
         identity=f"{title} {body}"; nt=norm(identity)
         if norm(model) not in nt and compact_model not in re.sub(r"\s+","",nt): continue
-        price=ad.get("price",ad.get("_price_eur"))
+        # Selon la version de l'Actor, le prix peut être dans price,
+        # priceCents ou _price_eur. On ne mélange jamais avec un autre résultat.
+        price=ad.get("price")
+        if price is None:
+            price=ad.get("_price_eur")
+        if price is None and ad.get("priceCents") is not None:
+            try: price=float(ad.get("priceCents"))/100.0
+            except (TypeError,ValueError): price=None
         if isinstance(price,list) and price: price=price[0]
-        try: price=round(float(str(price).replace(" ","").replace("\u202f","").replace(",",".")))
+        if isinstance(price,dict): price=price.get("value",price.get("amount"))
+        try: price=round(float(str(price).replace(" ","").replace("\u00a0","").replace("\u202f","").replace(",",".")))
         except (TypeError,ValueError): price=None
         if price is None or not 10000<=price<=150000: continue
-        km=None; kv=attr_find(ad,"km")
+        km=None
+        # L'Actor peut fournir le kilométrage à plat ou dans attributes.
+        flat_km=ad.get("mileageKm",ad.get("vehicle_mileage",ad.get("mileage")))
+        kv=flat_km if flat_km is not None else attr_find(ad,"km")
         if kv is not None:
             try: km=clean_num(kv); km=km if 0<=km<=300000 else None
             except Exception: km=None
         if km is None:
             ks=extract_kms(identity); km=ks[0] if ks else None
-        yrs=extract_years(identity); yv=attr_find(ad,"year")
+        yrs=extract_years(identity)
+        yv=ad.get("year",ad.get("vehicle_registration_year"))
+        if yv is None:
+            yv=attr_find(ad,"year")
         if yv is not None:
             try:
                 yy=int(str(yv)[:4])
@@ -1593,6 +1613,10 @@ def collecte_diagnostic():
 
     for r in results:
         url=str(r.get("link","") or "").strip()
+        # Quand le collecteur LBC central est configuré, Serper ne doit jamais
+        # réinjecter une ancienne fiche/prix LBC dans le diagnostic.
+        if os.environ.get("APIFY_API_TOKEN","").strip() and "leboncoin.fr" in url.lower():
+            continue
         if not url or url in seen or not is_direct_listing_url(url):
             continue
         seen.add(url)
