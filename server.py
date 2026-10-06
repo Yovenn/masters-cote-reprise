@@ -1243,7 +1243,7 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
         "complete_fields":complete,"evidence":evidence
     }
 
-def collect_lbc_apify(brand, model, years, category="camping"):
+def collect_lbc_apify(brand, model, years, category="camping", requested_gamme=""):
     """Collecte LBC centralisée via Apify + proxy résidentiel FR."""
     token=os.environ.get("APIFY_API_TOKEN","").strip()
     if not token:
@@ -1318,13 +1318,21 @@ def collect_lbc_apify(brand, model, years, category="camping"):
             body_model_ok=(norm(model) in norm(body) or compact_model in re.sub(r"\\s+","",norm(body)))
             # L'Actor peut renseigner l'attribut structuré "model" avec une
             # valeur courte (ex. "328") qui ne reprend pas toute la finition.
-            # On utilise donc l'attribut comme contrôle prioritaire, mais le
-            # titre/corps de l'annonce comme preuve complète du modèle demandé.
+            # Le titre/corps reste donc la preuve de la référence complète.
             if norm(model) not in typed_model_norm and compact_model not in re.sub(r"\\s+","",typed_model_norm):
                 if not title_model_ok and not body_model_ok:
                     reject_counts["model"]+=1; continue
         elif norm(model) not in norm(title) and compact_model not in re.sub(r"\\s+","",norm(title)):
             reject_counts["model"]+=1; continue
+
+        # Quand une référence DICA précise est sélectionnée, la finition devient
+        # obligatoire pour la collecte LBC. On accepte les variantes d'ordre
+        # ("Graphite Ultimate" / "Ultimate Graphite"), mais jamais une autre
+        # finition ("Premium", "Start", "Break", "Etape"...).
+        if requested_gamme:
+            finish_ok=finish_alias_match(identity, requested_gamme, model)
+            if not finish_ok:
+                reject_counts["model"]+=1; continue
         # Selon la version de l'Actor, le prix peut être dans price,
         # priceCents ou _price_eur. On ne mélange jamais avec un autre résultat.
         price=ad.get("price")
@@ -1377,7 +1385,7 @@ def collect_lbc_apify(brand, model, years, category="camping"):
     return unique, errors
 
 
-def collect_lbc_search_results(brand, model, years, category="camping", max_pages=3):
+def collect_lbc_search_results(brand, model, years, category="camping", max_pages=3, requested_gamme=""):
     """Collecte LBC ultra-légère via le Finder.
     Retourne (annonces, erreurs) afin que le diagnostic distingue
     une vraie absence d'annonce d'un blocage HTTP/anti-bot."""
@@ -1385,7 +1393,7 @@ def collect_lbc_search_results(brand, model, years, category="camping", max_page
     # Ne jamais basculer silencieusement vers Finder : un retour Apify vide
     # doit rester visible comme "0 annonce Apify", pas comme un faux HTTP 403 Finder.
     if os.environ.get("APIFY_API_TOKEN","").strip():
-        apify_ads, apify_errors = collect_lbc_apify(brand, model, years, category)
+        apify_ads, apify_errors = collect_lbc_apify(brand, model, years, category, requested_gamme=requested_gamme)
         return apify_ads, apify_errors
 
     if not CURL_CFFI_AVAILABLE:
@@ -1636,7 +1644,7 @@ def collecte_diagnostic():
     # Si l'extension Chrome fournit LBC, ses données passent avant la tentative serveur.
     lbc_browser_ads=data.get("lbc_browser_ads") or []
     lbc_browser_used=bool(lbc_browser_ads)
-    lbc_direct,lbc_errors=collect_lbc_search_results(brand,model,market_years,category=category,max_pages=3)
+    lbc_direct,lbc_errors=collect_lbc_search_results(brand,model,market_years,category=category,max_pages=3,requested_gamme=str(data.get("dica_gamme","")).strip())
     if lbc_browser_used:
         for ad in lbc_browser_ads:
             if isinstance(ad,dict) and ad.get("url"):
