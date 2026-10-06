@@ -1361,8 +1361,8 @@ def collect_lbc_apify(brand, model, years, category="camping"):
     if collected and not unique and not errors:
         errors.append(
             f"Apify LBC: {len(collected)} résultat(s) brut(s) reçus mais 0 annonce(s) retenue(s). "
-            f"Rejets: URL={reject_counts[\"url\"]}, modèle={reject_counts[\"model\"]}, marque={reject_counts[\"brand\"]}, "
-            f"prix={reject_counts[\"price\"]}, année={reject_counts[\"year\"]}, statut={reject_counts[\"status\"]}, type={reject_counts[\"record_type\"]}."
+            f"Rejets: URL={reject_counts['url']}, modèle={reject_counts['model']}, marque={reject_counts['brand']}, "
+            f"prix={reject_counts['price']}, année={reject_counts['year']}, statut={reject_counts['status']}, type={reject_counts['record_type']}."
         )
     elif not collected and not errors:
         errors.append("Apify LBC: 0 résultat brut reçu")
