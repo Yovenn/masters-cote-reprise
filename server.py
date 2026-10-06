@@ -1313,9 +1313,17 @@ def collect_lbc_apify(brand, model, years, category="camping"):
         if typed_brand is not None and norm(brand) and norm(brand) not in norm(typed_brand):
             reject_counts["brand"]+=1; continue
         if typed_model is not None:
-            if norm(model) not in norm(typed_model) and compact_model not in re.sub(r"\s+","",norm(typed_model)):
-                reject_counts["model"]+=1; continue
-        elif norm(model) not in norm(title) and compact_model not in re.sub(r"\s+","",norm(title)):
+            typed_model_norm=norm(typed_model)
+            title_model_ok=(norm(model) in norm(title) or compact_model in re.sub(r"\\s+","",norm(title)))
+            body_model_ok=(norm(model) in norm(body) or compact_model in re.sub(r"\\s+","",norm(body)))
+            # L'Actor peut renseigner l'attribut structuré "model" avec une
+            # valeur courte (ex. "328") qui ne reprend pas toute la finition.
+            # On utilise donc l'attribut comme contrôle prioritaire, mais le
+            # titre/corps de l'annonce comme preuve complète du modèle demandé.
+            if norm(model) not in typed_model_norm and compact_model not in re.sub(r"\\s+","",typed_model_norm):
+                if not title_model_ok and not body_model_ok:
+                    reject_counts["model"]+=1; continue
+        elif norm(model) not in norm(title) and compact_model not in re.sub(r"\\s+","",norm(title)):
             reject_counts["model"]+=1; continue
         # Selon la version de l'Actor, le prix peut être dans price,
         # priceCents ou _price_eur. On ne mélange jamais avec un autre résultat.
