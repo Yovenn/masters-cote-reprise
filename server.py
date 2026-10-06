@@ -1269,30 +1269,31 @@ def collect_lbc_apify(brand, model, years, category="camping"):
                 for item in vals:
                     if item not in (None,""): return item
         return None
-    for y in years:
-        # Utilise les filtres véhicule structurés de l'Actor (marque/modèle + année).
-        # Le filtre "text" reste en complément pour les variantes de libellé.
-        payload={"category":category_id,
-                 "locations":[],
-                 "text":f"{brand} {model}",
-                 "year_min":int(y),"year_max":int(y),
-                 "sort":"newest","max_results":100,
-                 "proxyConfiguration":{"useApifyProxy":True,"apifyProxyGroups":["RESIDENTIAL"],"apifyProxyCountry":"FR"}}
-        try:
-            resp=requests.post(endpoint,json=payload,
-                headers={"Content-Type":"application/json","Authorization":f"Bearer {token}"},timeout=90)
-            if not resp.ok:
-                errors.append(f"Apify LBC {y} HTTP {resp.status_code}: {resp.text[:300]}"); continue
+    if not years:
+        return [], []
+    y_min, y_max = int(min(years)), int(max(years))
+    payload={"category":category_id,
+             "locations":[],
+             "text":f"{brand} {model}",
+             "year_min":y_min,"year_max":y_max,
+             "sort":"newest","max_results":100,
+             "proxyConfiguration":{"useApifyProxy":True,"apifyProxyGroups":["RESIDENTIAL"],"apifyProxyCountry":"FR"}}
+    try:
+        resp=requests.post(endpoint,json=payload,
+            headers={"Content-Type":"application/json","Authorization":f"Bearer {token}"},timeout=90)
+        if not resp.ok:
+            errors.append(f"Apify LBC {y_min}-{y_max} HTTP {resp.status_code}: {resp.text[:300]}")
+        else:
             data=resp.json()
             if isinstance(data,list):
                 collected.extend(data)
                 if not data:
-                    errors.append(f"Apify LBC {y}: HTTP {resp.status_code}, dataset vide (Actor {actor})")
+                    errors.append(f"Apify LBC {y_min}-{y_max}: HTTP {resp.status_code}, dataset vide (Actor {actor})")
             else:
                 keys=", ".join(str(k) for k in data.keys()) if isinstance(data,dict) else type(data).__name__
-                errors.append(f"Apify LBC {y}: HTTP {resp.status_code}, réponse inattendue ({keys}) (Actor {actor})")
-        except Exception as exc:
-            errors.append(f"Apify LBC {y} {type(exc).__name__}: {exc}")
+                errors.append(f"Apify LBC {y_min}-{y_max}: HTTP {resp.status_code}, réponse inattendue ({keys}) (Actor {actor})")
+    except Exception as exc:
+        errors.append(f"Apify LBC {y_min}-{y_max} {type(exc).__name__}: {exc}")
     unique=[]; seen=set(); compact_model=re.sub(r"\s+","",norm(model))
     for ad in collected:
         if not isinstance(ad,dict): continue
