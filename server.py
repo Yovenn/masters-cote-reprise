@@ -1881,6 +1881,8 @@ def cote():
     queries=list(dict.fromkeys(queries))
     # Déduplication des requêtes pour ne pas gaspiller les appels Serper.
     queries=list(dict.fromkeys(queries))
+    # Collecte LBC actuelle centralisée avant de construire les comparables.
+    lbc_direct,lbc_errors=collect_lbc_search_results(brand,model,market_years,category=category,max_pages=3)
     results=[]
     def serper_search(q):
         try:
