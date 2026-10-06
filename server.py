@@ -78,23 +78,55 @@ def norm(s):
     return re.sub(r"[^a-z0-9]","",s)
 
 def finish_alias_match(text, requested_gamme, model=""):
-    """Vérifie qu'une annonce porte bien la finition/gamme DICA demandée.
-    Le modèle reste traité séparément ; ici on contrôle uniquement la gamme.
+    """Vérifie la finition sans exiger la motorisation/les détails techniques DICA.
+    Le modèle et l'année sont contrôlés séparément par le collecteur.
     """
     target=norm(requested_gamme)
     if not target:
         return True
+
+    # Retire la référence modèle de la gamme sélectionnée :
+    # ex. "GRAPHITE EDITION PREMIUM - 328" -> "GRAPHITE EDITION PREMIUM".
+    model_norm=norm(model)
+    target_clean=target
+    if model_norm:
+        target_clean=target_clean.replace(model_norm,"")
+        compact_model=re.sub(r"\s+","",model_norm)
+        target_clean=target_clean.replace(compact_model,"")
+
+    # Si la gamme DICA contient une motorisation après un séparateur,
+    # seule la partie finition nous intéresse.
+    raw=str(requested_gamme or "")
+    for sep in ("—","–"," - ","|"):
+        if sep in raw:
+            raw=raw.split(sep)[0]
+            break
+    raw_norm=norm(raw)
+    if raw_norm:
+        target_clean=raw_norm
+        if model_norm:
+            target_clean=target_clean.replace(model_norm,"")
+
     hay=norm(text)
-    # Une gamme composée doit retrouver chacun de ses mots significatifs.
-    raw_tokens=re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", str(requested_gamme or "")).encode("ascii","ignore").decode("ascii").lower())
-    tokens=[t for t in raw_tokens if len(t)>=3]
+    raw_tokens=re.findall(r"[a-z0-9]+", target_clean)
+
+    # Termes génériques qui ne caractérisent pas une finition.
+    generic={"edition","version","serie","series","profil","profile","pack"}
+    tokens=[t for t in raw_tokens if len(t)>=3 and t not in generic]
+
     if not tokens:
         return True
-    # Tolère les petites fautes OCR/annonce sur les mots longs (ex. ULTIMAT).
+
+    # Tous les termes réellement discriminants de la finition doivent apparaître.
     for tok in tokens:
         if tok in hay:
             continue
-        if len(tok)>=6 and any(abs(len(tok)-len(x))<=1 and tok[:6]==x[:6] for x in re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", str(text or "")).encode("ascii","ignore").decode("ascii").lower())):
+        # Petite tolérance aux coquilles OCR sur les mots longs.
+        hay_tokens=re.findall(r"[a-z0-9]+", hay)
+        if len(tok)>=6 and any(
+            abs(len(tok)-len(x))<=1 and tok[:6]==x[:6]
+            for x in hay_tokens
+        ):
             continue
         return False
     return True
