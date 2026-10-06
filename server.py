@@ -615,6 +615,9 @@ def fetch_selected_ad_data(r, target_year=None, target_model=None):
     }
 
 def parse_price_km(r, target_year=None, target_km=None):
+    if r.get("price_source") == "lbc_finder_browser":
+        p=r.get("price"); k=r.get("km")
+        return (int(p) if p is not None else 0), (int(k) if k is not None else None)
     # Si la page détail a été consultée, son prix prime toujours sur le
     # prix extrait du snippet Google/Serper.
     detail=r.get("_detail") or {}
@@ -1483,9 +1486,21 @@ def collecte_diagnostic():
                 return False
         return True
 
-    # Collecte LBC directe : le prix est extrait de la page de résultats
-    # actuelle, dans le même bloc que l'annonce. C'est la source de vérité LBC.
+    # Si l'extension Chrome fournit LBC, ses données passent avant la tentative serveur.
+    lbc_browser_ads=data.get("lbc_browser_ads") or []
+    lbc_browser_used=bool(lbc_browser_ads)
     lbc_direct,lbc_errors=collect_lbc_search_results(brand,model,market_years,max_pages=3)
+    if lbc_browser_used:
+        for ad in lbc_browser_ads:
+            if isinstance(ad,dict) and ad.get("url"):
+                lbc_direct.append({
+                    "source_domain":"leboncoin.fr","title":ad.get("title",""),"url":ad.get("url"),
+                    "snippet":ad.get("snippet",""),"price":ad.get("price"),
+                    "price_source":"lbc_finder_browser","km":ad.get("km"),"year":ad.get("year"),
+                    "query":"LBC_BROWSER_FINDER","direct_listing":True,"detail_scraped":True,
+                    "raw_price":ad.get("price"),"raw_km":ad.get("km")
+                })
+        lbc_errors=[]
     rows=[]
     seen=set()
     for lr in lbc_direct:
@@ -1619,6 +1634,8 @@ def collecte_diagnostic():
         "errors":errors,
         "lbc_errors":lbc_errors[:30],
         "lbc_proxy_configured":bool(os.environ.get("LBC_PROXY_URL","").strip()),
+        "lbc_browser_used":bool(lbc_browser_used),
+        "lbc_browser_annonces":len(lbc_browser_ads),
         "stats":stats,
         "annonces":rows[:100]
     })
@@ -1800,6 +1817,17 @@ def cote():
             for item in items:
                 item["source"]=q
                 results.append(item)
+    browser_ads=data.get("lbc_browser_ads") or []
+    for ad in browser_ads:
+        if not isinstance(ad,dict): continue
+        url=str(ad.get("url","") or "").strip()
+        if not url or "leboncoin.fr" not in url: continue
+        results.append({
+            "link":url,"title":str(ad.get("title","") or ""),
+            "snippet":str(ad.get("snippet","") or ""),
+            "price":ad.get("price"),"km":ad.get("km"),"year":ad.get("year"),
+            "price_source":"lbc_finder_browser","source":"LBC_BROWSER_FINDER"
+        })
     uniq={r["link"]:r for r in results if r.get("link")}
     dedup={}
     for r in uniq.values():
