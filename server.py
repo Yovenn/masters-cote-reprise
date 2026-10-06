@@ -1244,17 +1244,15 @@ def collect_lbc_apify(brand, model, years):
     token=os.environ.get("APIFY_API_TOKEN","").strip()
     if not token:
         return [], []
-    actor=os.environ.get("APIFY_LBC_ACTOR","piotrv1001/leboncoin-listings-scraper").strip()
+    actor=os.environ.get("APIFY_LBC_ACTOR","xtracto/leboncoin-listings").strip()
     if not actor:
         return [], ["APIFY_LBC_ACTOR vide"]
 
     payload={
-        "searchQueries":[f"{brand} {model} {y}" for y in years],
-        "categoryIds":[],
-        "sort":"time",
-        "includeDetails":False,
-        "maxItems":80,
-        "maxPages":2,
+        "searchQuery":" OR ".join(f"{brand} {model} {y}" for y in years),
+        "category":"4",
+        "sortBy":"time",
+        "maxResults":80,
         "proxyConfiguration":{
             "useApifyProxy":True,
             "apifyProxyGroups":["RESIDENTIAL"],
@@ -1263,8 +1261,8 @@ def collect_lbc_apify(brand, model, years):
     }
     endpoint=f"https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
     try:
-        resp=requests.post(endpoint,params={"token":token},json=payload,
-                           headers={"Content-Type":"application/json"},timeout=75)
+        resp=requests.post(endpoint,json=payload,
+                           headers={"Content-Type":"application/json","Authorization":f"Bearer {token}"},timeout=75)
         if not resp.ok:
             return [], [f"Apify LBC HTTP {resp.status_code}: {resp.text[:300]}"]
         data=resp.json()
