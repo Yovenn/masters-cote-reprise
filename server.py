@@ -1721,6 +1721,8 @@ def collecte_diagnostic():
             seen.add(u)
             rows.append(lr)
 
+    requested_gamme=str(data.get("dica_gamme","")).strip()
+    finish_rejections=0
     for r in results:
         url=str(r.get("link","") or "").strip()
         # Quand le collecteur LBC central est configuré, Serper ne doit jamais
@@ -1764,6 +1766,18 @@ def collecte_diagnostic():
             target_km=None,
             target_gamme=None
         ) or {}
+
+        # La finition DICA sélectionnée est obligatoire sur les autres sites
+        # également. On vérifie le titre/snippet puis, si disponible, le titre
+        # réellement récupéré sur la fiche. Cela empêche par exemple une
+        # "Graphite Ultimate" ou une "Break Edition" d'entrer dans une cote
+        # demandée en "Graphite Edition Premium".
+        if requested_gamme:
+            finish_text=f"{title_raw} {r.get('snippet','')} {detail.get('title','')}"
+            if not finish_alias_match(finish_text, requested_gamme, model):
+                finish_rejections+=1
+                seen.discard(url)
+                continue
 
         domain=""
         try:
@@ -1849,6 +1863,7 @@ def collecte_diagnostic():
         "direct_fiches":len(rows),
         "errors":errors,
         "errors_summary":error_summary(errors),
+        "finish_rejections":finish_rejections,
         "lbc_errors":lbc_errors[:30],
         "lbc_proxy_configured":bool(os.environ.get("LBC_PROXY_URL","").strip()),
         "lbc_provider":("apify" if os.environ.get("APIFY_API_TOKEN","").strip() else
