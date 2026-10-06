@@ -155,7 +155,13 @@ async function go(selectedUrls,selectedAds){const status=document.getElementById
     if(!r.ok)throw new Error(d.error||'Erreur serveur');
     var h='<div class="card" style="margin-top:12px"><h2>🔎 Diagnostic de collecte</h2>';
     h+='<div class="small">Aucune cote ni aucun filtre de finition n’est appliqué ici.</div>';
-    h+='<div class="quality-grid" style="margin-top:12px"><div><span class="small">Requêtes</span><b>'+Number(d.queries||0)+'</b></div><div><span class="small">Résultats bruts</span><b>'+Number(d.raw_results||0)+'</b></div><div><span class="small">Annonces uniques</span><b>'+Number(d.unique_annonces||0)+'</b></div><div><span class="small">Erreurs</span><b>'+Number((d.errors||[]).length)+'</b></div></div>';
+    h+='<div class="quality-grid" style="margin-top:12px"><div><span class="small">Requêtes</span><b>'+Number(d.queries||0)+'</b></div><div><span class="small">Résultats bruts</span><b>'+Number(d.raw_results||0)+'</b></div><div><span class="small">Annonces uniques</span><b>'+Number(d.unique_annonces||0)+'</b></div><div><span class="small">Erreurs Serper</span><b>'+Number((d.errors||[]).length)+'</b></div></div>';
+    var le=d.lbc_errors||[];
+    if(le.length){
+      h+='<div class="warning" style="margin-top:12px"><b>⚠️ Leboncoin — accès Finder</b><br>Le moteur léger LBC n’a pas pu récupérer les prix actuels. Réponses reçues : '+le.length+(d.lbc_proxy_configured?' · proxy LBC configuré':' · aucun proxy LBC configuré')+'.<br><span class="small">'+le.slice(0,5).map(function(x){return String(x)}).join('<br>')+'</span></div>';
+    }else{
+      h+='<div class="comp" style="margin-top:12px"><b>✓ Leboncoin — Finder</b><br><span class="small">Aucune erreur HTTP remontée par le moteur LBC.</span></div>';
+    }
     var stats=d.stats||{};
     Object.keys(stats).forEach(function(k){var x=stats[k];h+='<div class="comp"><b>'+k+'</b><br><span class="small">'+x.annonces+' annonces · '+x.prix+' prix · '+x.km+' km · '+x.annee+' années</span></div>'});
     h+='<h3 style="margin-top:18px">Annonces collectées</h3>';
