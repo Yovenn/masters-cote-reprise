@@ -1262,6 +1262,8 @@ def collect_lbc_apify(brand, model, years, category="camping"):
             k=norm(a.get("key","")); lab=norm(a.get("key_label",""))
             if kind=="km" and not any(z in k or z in lab for z in ("mileage","kilometr")): continue
             if kind=="year" and not any(z in k or z in lab for z in ("regdate","year","annee")): continue
+            if kind=="brand" and not any(z in k or z in lab for z in ("brand","marque")): continue
+            if kind=="model" and not any(z in k or z in lab for z in ("model","modele")): continue
             for f in ("value","value_label","values","values_label"):
                 v=a.get(f); vals=v if isinstance(v,list) else [v]
                 for item in vals:
@@ -1301,7 +1303,15 @@ def collect_lbc_apify(brand, model, years, category="camping"):
         title=str(ad.get("subject") or ad.get("title") or "").strip()
         body=str(ad.get("body") or ad.get("description") or "").strip()
         identity=f"{title} {body}"; nt=norm(identity)
-        if norm(model) not in nt and compact_model not in re.sub(r"\s+","",nt): continue
+        typed_brand=attr_find(ad,"brand")
+        typed_model=attr_find(ad,"model")
+        if typed_brand is not None and norm(brand) and norm(brand) not in norm(typed_brand):
+            continue
+        if typed_model is not None:
+            if norm(model) not in norm(typed_model) and compact_model not in re.sub(r"\s+","",norm(typed_model)):
+                continue
+        elif norm(model) not in norm(title) and compact_model not in re.sub(r"\s+","",norm(title)):
+            continue
         # Selon la version de l'Actor, le prix peut être dans price,
         # priceCents ou _price_eur. On ne mélange jamais avec un autre résultat.
         price=ad.get("price")
