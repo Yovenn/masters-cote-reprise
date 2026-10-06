@@ -916,9 +916,15 @@ def score_result(r,brand,model,year,target_km,hp=None,transmission=None,dica_gam
         return 0
     model_score=max(title_model_score,detail_model_score)
     score+=model_score
-    # La finition DICA ne sert PAS à filtrer le marché.
-    # Les annonces sont recherchées sur marque + modèle + année + catégorie.
-    # La finition reste uniquement une information de référence DICA.
+    # Quand une finition DICA précise est sélectionnée, elle devient un
+    # garde-fou pour les comparables automatiques : une Ultimate/VIP/Start
+    # ne doit pas entrer dans la moyenne d'une Graphite Premium.
+    # Les variantes restent disponibles dans la sélection manuelle.
+    if dica_gamme:
+        finish_score=dica_gamme_score(text,brand,model,year,dica_gamme,category)
+        if finish_score < 0:
+            return 0
+        score+=finish_score
     if re.search(rf"\b{re.escape(str(year))}\b",low): score+=20
     ks=extract_kms(text)
     if ks:
