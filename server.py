@@ -1298,8 +1298,8 @@ def collect_lbc_apify(brand, model, years):
         body=str(ad.get("description") or ad.get("body") or "").strip()
         identity=f"{title} {body}"
         nt=norm(identity)
-        compact_model=re.sub(r"\\s+","",norm(model))
-        if norm(model) not in nt and compact_model not in re.sub(r"\\s+","",nt):
+        compact_model=re.sub(r"\s+","",norm(model))
+        if norm(model) not in nt and compact_model not in re.sub(r"\s+","",nt):
             continue
 
         price=ad.get("price")
@@ -1309,7 +1309,7 @@ def collect_lbc_apify(brand, model, years):
             try: price=float(ad.get("priceCents"))/100
             except Exception: price=None
         if isinstance(price,list) and price: price=price[0]
-        try: price=round(float(str(price).replace(" ","").replace("\\u202f","")))
+        try: price=round(float(str(price).replace(" ","").replace("\u202f","")))
         except Exception: price=None
         if price is None or not 10000<=price<=150000: continue
 
