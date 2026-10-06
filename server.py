@@ -1148,7 +1148,7 @@ def evidence_for_result(r,brand,model,year,target_km,dica_gamme=None):
         "modele":{"ok":bool(model_ev),"preuve":model_ev,"contexte":model_ev},
         "finition":{"ok":bool(fields["finition"]),"preuve":finish_ev,"contexte":finish_ev},
         "score":sum(1 for v in fields.values() if v),
-        "source":str(r.get("link","") or detail.get("url","") or "")
+        "source":str(r.get("link","") or r.get("url","") or detail.get("url","") or "")
     }
 
 def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_gamme=None,category="camping"):
@@ -1224,12 +1224,12 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
         reliability="C"
 
     try:
-        source_domain=re.sub(r"^www\\.","",requests.utils.urlparse(str(r.get("link",""))).netloc.lower())
+        source_domain=re.sub(r"^www\\.","",requests.utils.urlparse(str(r.get("link") or r.get("url") or "")).netloc.lower())
     except Exception:
         source_domain=""
 
     return {
-        "title":r.get("title"),"url":r.get("link"),"snippet":r.get("snippet"),
+        "title":r.get("title"),"url":r.get("link") or r.get("url"),"snippet":r.get("snippet"),
         "price":price,"km":rkm,"adjusted":round(adjusted),"km_adjustment":km_adjustment,
         "score":round(score),"source":r.get("source",""),"source_domain":source_domain,
         "transmission":extract_transmission(text),"reliability":reliability,
@@ -1237,118 +1237,89 @@ def comparable_row(r,brand,model,year,target_km,hp=None,transmission=None,dica_g
         "complete_fields":complete,"evidence":evidence
     }
 
-def collect_lbc_apify(brand, model, years):
-    """Collecte LBC centralisée via Apify + proxy résidentiel FR.
-    Les prix retournés sont ceux de la collecte actuelle, jamais ceux de Serper.
-    """
+def collect_lbc_apify(brand, model, years, category="camping"):
+    """Collecte LBC centralisée via Apify + proxy résidentiel FR."""
     token=os.environ.get("APIFY_API_TOKEN","").strip()
     if not token:
         return [], []
-    actor=os.environ.get("APIFY_LBC_ACTOR","xtracto/leboncoin-listings").strip()
-    if not actor:
-        return [], ["APIFY_LBC_ACTOR vide"]
-
-    payload={
-        "searchQuery":" OR ".join(f"{brand} {model} {y}" for y in years),
-        "category":"4",
-        "sortBy":"time",
-        "maxResults":80,
-        "proxyConfiguration":{
-            "useApifyProxy":True,
-            "apifyProxyGroups":["RESIDENTIAL"],
-            "apifyProxyCountry":"FR"
-        }
-    }
-    endpoint=f"https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
-    try:
-        resp=requests.post(endpoint,json=payload,
-                           headers={"Content-Type":"application/json","Authorization":f"Bearer {token}"},timeout=75)
-        if not resp.ok:
-            return [], [f"Apify LBC HTTP {resp.status_code}: {resp.text[:300]}"]
-        data=resp.json()
-        if not isinstance(data,list):
-            return [], ["Apify LBC réponse inattendue"]
-    except Exception as exc:
-        return [], [f"Apify LBC {type(exc).__name__}: {exc}"]
-
-    def attr_value(ad,keys):
-        attrs=ad.get("attributes") or []
-        if isinstance(attrs,dict):
-            attrs=[{"key":k,"value":v} for k,v in attrs.items()]
-        wanted={str(x).lower() for x in keys}
-        for a in attrs:
+    actor=os.environ.get("APIFY_LBC_ACTOR","scrapifier/leboncoin-universal-scraper-vehicles").strip()
+    category_id={"camping":"4","van":"5","fourgon":"5","poids_lourd":"300"}.get(category,"4")
+    endpoint=f"https://api.apify.com/v2/acts/{actor.replace('/', '~')}/run-sync-get-dataset-items"
+    collected=[]; errors=[]
+    def attrs(ad):
+        x=ad.get("attributes") or []
+        if isinstance(x,dict): x=[{"key":k,"value":v} for k,v in x.items()]
+        return x if isinstance(x,list) else []
+    def attr_find(ad,kind):
+        for a in attrs(ad):
             if not isinstance(a,dict): continue
-            key=str(a.get("key") or a.get("name") or a.get("label") or "").lower()
-            if key not in wanted: continue
-            for field in ("value","value_label","values_label","values","valueLabel"):
-                v=a.get(field)
-                if isinstance(v,list) and v: v=v[0]
-                if v not in (None,""): return v
+            k=norm(a.get("key","")); lab=norm(a.get("key_label",""))
+            if kind=="km" and not any(z in k or z in lab for z in ("mileage","kilometr")): continue
+            if kind=="year" and not any(z in k or z in lab for z in ("regdate","year","annee")): continue
+            for f in ("value","value_label","values","values_label"):
+                v=a.get(f); vals=v if isinstance(v,list) else [v]
+                for item in vals:
+                    if item not in (None,""): return item
         return None
-
-    unique=[]; seen=set()
-    for ad in data:
+    for y in years:
+        payload={"category":category_id,"text":f"{brand} {model}","year_min":int(y),"year_max":int(y),
+                 "sort":"newest","max_results":60,
+                 "proxyConfiguration":{"useApifyProxy":True,"apifyProxyGroups":["RESIDENTIAL"],"apifyProxyCountry":"FR"}}
+        try:
+            resp=requests.post(endpoint,json=payload,
+                headers={"Content-Type":"application/json","Authorization":f"Bearer {token}"},timeout=90)
+            if not resp.ok:
+                errors.append(f"Apify LBC {y} HTTP {resp.status_code}: {resp.text[:300]}"); continue
+            data=resp.json()
+            if isinstance(data,list): collected.extend(data)
+            else: errors.append(f"Apify LBC {y}: réponse inattendue")
+        except Exception as exc:
+            errors.append(f"Apify LBC {y} {type(exc).__name__}: {exc}")
+    unique=[]; seen=set(); compact_model=re.sub(r"\s+","",norm(model))
+    for ad in collected:
         if not isinstance(ad,dict): continue
+        if str(ad.get("recordType","")).upper() not in ("","AD"): continue
         url=str(ad.get("url") or ad.get("listingUrl") or "").strip().rstrip("/")
-        if not url or "leboncoin.fr" not in url.lower() or "/ad/" not in url.lower() or url in seen:
-            continue
-        title=str(ad.get("title") or ad.get("subject") or "").strip()
-        body=str(ad.get("description") or ad.get("body") or "").strip()
-        identity=f"{title} {body}"
-        nt=norm(identity)
-        compact_model=re.sub(r"\s+","",norm(model))
-        if norm(model) not in nt and compact_model not in re.sub(r"\s+","",nt):
-            continue
-
-        price=ad.get("price")
-        if price is None: price=ad.get("priceValue")
-        if price is None: price=ad.get("_price_eur")
-        if price is None and ad.get("priceCents") is not None:
-            try: price=float(ad.get("priceCents"))/100
-            except Exception: price=None
+        if not url or "leboncoin.fr" not in url.lower() or "/ad/" not in url.lower() or url in seen: continue
+        if str(ad.get("status","active")).lower() not in ("active",""): continue
+        title=str(ad.get("subject") or ad.get("title") or "").strip()
+        body=str(ad.get("body") or ad.get("description") or "").strip()
+        identity=f"{title} {body}"; nt=norm(identity)
+        if norm(model) not in nt and compact_model not in re.sub(r"\s+","",nt): continue
+        price=ad.get("price",ad.get("_price_eur"))
         if isinstance(price,list) and price: price=price[0]
-        try: price=round(float(str(price).replace(" ","").replace("\u202f","")))
-        except Exception: price=None
+        try: price=round(float(str(price).replace(" ","").replace("\u202f","").replace(",",".")))
+        except (TypeError,ValueError): price=None
         if price is None or not 10000<=price<=150000: continue
-
-        km=None
-        for key in ("mileage","mileage_km","kilometrage","kilométrage","km"):
-            v=attr_value(ad,[key])
-            if v is not None:
-                try:
-                    km=clean_num(v)
-                    if 0<=km<=300000: break
-                except Exception: pass
+        km=None; kv=attr_find(ad,"km")
+        if kv is not None:
+            try: km=clean_num(kv); km=km if 0<=km<=300000 else None
+            except Exception: km=None
         if km is None:
-            kms=extract_kms(identity)
-            if kms: km=kms[0]
-
-        yrs=extract_years(identity)
-        for key in ("regdate","registration_year","year","annee","année"):
-            v=attr_value(ad,[key])
-            if v is not None:
-                try:
-                    y=int(str(v)[:4])
-                    if 1900<=y<=2100: yrs.insert(0,y); break
-                except Exception: pass
-        valid=[y for y in yrs if y in years]
+            ks=extract_kms(identity); km=ks[0] if ks else None
+        yrs=extract_years(identity); yv=attr_find(ad,"year")
+        if yv is not None:
+            try:
+                yy=int(str(yv)[:4])
+                if 1900<=yy<=2100: yrs.insert(0,yy)
+            except Exception: pass
+        valid=[yy for yy in yrs if yy in years]
         if not valid: continue
-
         seen.add(url)
-        unique.append({
-            "source_domain":"leboncoin.fr","title":title,"url":url,"snippet":body[:1200],
-            "price":price,"price_source":"lbc_apify_current","km":km,"year":valid[0],
-            "all_years":yrs[:6],"query":"LBC_APIFY","direct_listing":True,
-            "detail_scraped":False,"raw_price":price,"raw_km":km
-        })
-    return unique, []
+        unique.append({"source_domain":"leboncoin.fr","title":title,"url":url,"link":url,"snippet":body[:1400],
+          "price":price,"price_source":"lbc_apify_current","km":km,"year":valid[0],"all_years":yrs[:6],
+          "query":f"LBC_APIFY_{valid[0]}","source":"LBC_APIFY","direct_listing":True,
+          "detail_scraped":True,"raw_price":price,"raw_km":km,
+          "index_date":ad.get("index_date") or ad.get("_scrapedAt") or ad.get("scraped_at")})
+    return unique, errors
 
-def collect_lbc_search_results(brand, model, years, max_pages=3):
+
+def collect_lbc_search_results(brand, model, years, category="camping", max_pages=3):
     """Collecte LBC ultra-légère via le Finder.
     Retourne (annonces, erreurs) afin que le diagnostic distingue
     une vraie absence d'annonce d'un blocage HTTP/anti-bot."""
     if os.environ.get("APIFY_API_TOKEN","").strip():
-        apify_ads, apify_errors = collect_lbc_apify(brand, model, years)
+        apify_ads, apify_errors = collect_lbc_apify(brand, model, years, category)
         if apify_ads or apify_errors:
             return apify_ads, apify_errors
 
@@ -1600,7 +1571,7 @@ def collecte_diagnostic():
     # Si l'extension Chrome fournit LBC, ses données passent avant la tentative serveur.
     lbc_browser_ads=data.get("lbc_browser_ads") or []
     lbc_browser_used=bool(lbc_browser_ads)
-    lbc_direct,lbc_errors=collect_lbc_search_results(brand,model,market_years,max_pages=3)
+    lbc_direct,lbc_errors=collect_lbc_search_results(brand,model,market_years,category=category,max_pages=3)
     if lbc_browser_used:
         for ad in lbc_browser_ads:
             if isinstance(ad,dict) and ad.get("url"):
@@ -1910,6 +1881,8 @@ def cote():
     queries=list(dict.fromkeys(queries))
     # Déduplication des requêtes pour ne pas gaspiller les appels Serper.
     queries=list(dict.fromkeys(queries))
+    # Collecte LBC actuelle centralisée avant de construire les comparables.
+    lbc_direct,lbc_errors=collect_lbc_search_results(brand,model,market_years,category=category,max_pages=3)
     results=[]
     def serper_search(q):
         try:
@@ -1932,6 +1905,16 @@ def cote():
             for item in items:
                 item["source"]=q
                 results.append(item)
+    # LBC central : les prix actuels Apify/Finder priment sur Serper.
+    if os.environ.get("APIFY_API_TOKEN","").strip():
+        results=[r for r in results if "leboncoin.fr" not in str(r.get("link","")).lower()]
+    for lr in lbc_direct:
+        if isinstance(lr,dict) and lr.get("url"):
+            results.append({"link":lr.get("url"),"title":lr.get("title",""),"snippet":lr.get("snippet",""),
+              "price":lr.get("price"),"km":lr.get("km"),"year":lr.get("year"),
+              "price_source":lr.get("price_source","lbc_apify_current"),"source":lr.get("source","LBC_APIFY"),
+              "lbc_current":True,"direct_listing":True,"index_date":lr.get("index_date")})
+
     browser_ads=data.get("lbc_browser_ads") or []
     for ad in browser_ads:
         if not isinstance(ad,dict): continue
