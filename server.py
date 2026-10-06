@@ -1808,6 +1808,14 @@ def collecte_diagnostic():
         years=extract_years(f"{detail_title} {txt}")
         detected_year=detail_year if detail_year in market_years else next((y for y in years if y in market_years),None)
 
+        # Une annonce externe dont l'année n'est pas confirmée ne doit pas
+        # entrer dans la base de comparables. De même, une annonce explicitement
+        # en dehors de la fenêtre demandée (ex. 2024 pour une recherche 2022-2023)
+        # doit être écartée, même si la finition correspond.
+        if detected_year not in market_years:
+            seen.discard(url)
+            continue
+
         rows.append({
             "source_domain":domain,
             "title":detail_title or r.get("title",""),
