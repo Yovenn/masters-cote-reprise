@@ -159,6 +159,15 @@ async function go(selectedUrls,selectedAds){const status=document.getElementById
     var h='<div class="card" style="margin-top:12px"><h2>🔎 Diagnostic de collecte</h2>';
     h+='<div class="small">Aucune cote ni aucun filtre de finition n’est appliqué ici.</div>';
     h+='<div class="quality-grid" style="margin-top:12px"><div><span class="small">Requêtes</span><b>'+Number(d.queries||0)+'</b></div><div><span class="small">Résultats bruts</span><b>'+Number(d.raw_results||0)+'</b></div><div><span class="small">Annonces uniques</span><b>'+Number(d.unique_annonces||0)+'</b></div><div><span class="small">Erreurs Serper</span><b>'+Number((d.errors||[]).length)+'</b></div></div>';
+    var serperErrors=d.errors||[];
+    if(serperErrors.length){
+      h+='<div class="warning" style="margin-top:12px;border-left-color:#d71920"><b>⚠️ Erreurs Serper détaillées</b><br><span class="small">Les résultats des autres sites ne peuvent pas être validés tant que ces erreurs ne sont pas résolues.</span>';
+      h+='<div style="margin-top:8px;font-family:monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;word-break:break-word">'+serperErrors.slice(0,12).map(function(x){
+        var q=String(x&&x.query||'');
+        var err=String(x&&x.error||x||'');
+        return '❌ '+q+' → '+err.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }).join('<br>')+'</div></div>';
+    }
     var le=d.lbc_errors||[];
     var provider=String(d.lbc_provider||'finder_direct').toLowerCase();
     var isApify=provider==='apify';
