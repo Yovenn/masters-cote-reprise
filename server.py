@@ -1626,14 +1626,22 @@ def collecte_diagnostic():
 
     def search_one(q):
         try:
+            # Serper attend une requête Google classique dans "q".
+            # Les recherches sont volontairement simples et ciblées par domaine.
             resp=requests.post(
                 "https://google.serper.dev/search",
                 headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},
-                json={"q":q,"gl":"fr","hl":"fr","num":10},
-                timeout=12
+                json={"q":str(q),"gl":"fr","hl":"fr","num":10,"type":"search"},
+                timeout=15
             )
-            resp.raise_for_status()
-            return q,resp.json().get("organic",[]),None
+            if not resp.ok:
+                try:
+                    detail=resp.json()
+                except Exception:
+                    detail=resp.text
+                return q,[],f"HTTP {resp.status_code}: {detail}"
+            payload=resp.json()
+            return q,payload.get("organic",[]) or [],None
         except Exception as exc:
             return q,[],str(exc)
 
