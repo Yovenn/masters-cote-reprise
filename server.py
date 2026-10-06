@@ -1599,11 +1599,11 @@ def collecte_diagnostic():
         return jsonify({"error":"Année invalide."}),400
     if category not in ("camping","poids_lourd","van","fourgon") or not brand or not model:
         return jsonify({"error":"Marque, modèle, année et catégorie sont nécessaires."}),400
-    if not SERPER_API_KEY:
-        return jsonify({"error":"SERPER_API_KEY manquante sur le serveur."}),500
+    APIFY_TOKEN=os.environ.get("APIFY_API_TOKEN","").strip()
+    if not APIFY_TOKEN:
+        return jsonify({"error":"APIFY_API_TOKEN manquante sur le serveur."}),500
 
     market_years=(year,year+1)
-    market_term="camping-car poids lourd" if category=="poids_lourd" else ("camping-car" if category=="camping" else ("fourgon aménagé" if category=="fourgon" else "van aménagé"))
     variants=[]
     compact=re.sub(r"\s+","",model)
     spaced=re.sub(r"(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])"," ",model).strip()
@@ -1611,61 +1611,70 @@ def collecte_diagnostic():
         if mv and mv.lower() not in [x.lower() for x in variants]:
             variants.append(mv)
 
+    # Leboncoin est collecté séparément par son Actor véhicule dédié.
+    # Pour les autres sites, on utilise l'Actor Google Search officiel d'Apify.
+    # Cela évite de dépendre d'un solde Serper séparé.
     queries=[]
+    other_sites=(
+        ("paruvendu.fr/a/caravaning-occasion/","paruvendu"),
+        ("camping-car.com/occasion/","camping-car.com"),
+        ("campingcarannonces.com","campingcarannonces"),
+        ("annonces-caravaning.com","annonces-caravaning"),
+    )
     for y in market_years:
         for mv in variants:
-            queries.extend([
-                f'site:leboncoin.fr/ad/ "{brand} {mv}" {y}',
-                f'site:leboncoin.fr/ad/ "{mv}" {y}',
-                f'site:paruvendu.fr/a/caravaning-occasion/ "{brand} {mv}" {y}',
-                f'site:camping-car.com/occasion/ "{brand} {mv}" {y}',
-                f'site:campingcarannonces.com "{brand} {mv}" {y}',
-                f'site:annonces-caravaning.com "{brand} {mv}" {y}'
-            ])
+            for domain,_label in other_sites:
+                queries.append(f'site:{domain} "{brand} {mv}" {y}')
     queries=list(dict.fromkeys(queries))
-
-    def search_one(q):
-        try:
-            # Serper attend une requête Google classique dans "q".
-            # Les recherches sont volontairement simples et ciblées par domaine.
-            resp=requests.post(
-                "https://google.serper.dev/search",
-                headers={"X-API-KEY":SERPER_API_KEY,"Content-Type":"application/json"},
-                json={"q":str(q),"gl":"fr","hl":"fr","num":10,"type":"search"},
-                timeout=15
-            )
-            if not resp.ok:
-                try:
-                    detail=resp.json()
-                except Exception:
-                    detail=resp.text
-                return q,[],f"HTTP {resp.status_code}: {detail}"
-            payload=resp.json()
-            return q,payload.get("organic",[]) or [],None
-        except Exception as exc:
-            return q,[],str(exc)
 
     results=[]
     errors=[]
+    try:
+        apify_url=f"https://api.apify.com/v2/acts/apify~google-search-scraper/run-sync-get-dataset-items?token={APIFY_TOKEN}"
+        payload={
+            "queries":"\n".join(queries),
+            "maxPagesPerQuery":1,
+            "resultsPerPage":10,
+            "countryCode":"fr",
+            "languageCode":"fr",
+            "mobileResults":False,
+            "includeUnfilteredResults":False,
+            "saveHtml":False,
+            "saveHtmlToKeyValueStore":False,
+            "geminiSearch":{"enableGemini":False},
+            "perplexitySearch":{"enablePerplexity":False,"returnImages":False,"returnRelatedQuestions":False},
+            "chatGptSearch":{"enableChatGpt":False},
+            "copilotSearch":{"enableCopilot":False},
+            "maximumLeadsEnrichmentRecords":0
+        }
+        resp=requests.post(apify_url,json=payload,timeout=120)
+        if not resp.ok:
+            try:
+                detail=resp.json()
+            except Exception:
+                detail=resp.text
+            errors.append({"query":"APIFY_GOOGLE_SEARCH","error":f"HTTP {resp.status_code}: {detail}"})
+        else:
+            data_items=resp.json() or []
+            for bucket in data_items:
+                if not isinstance(bucket,dict):
+                    continue
+                q=str((bucket.get("searchQuery") or {}).get("term") or bucket.get("query") or "")
+                bucket_error=bucket.get("error") or bucket.get("#error")
+                if bucket_error:
+                    errors.append({"query":q,"error":str(bucket_error)})
+                for item in (bucket.get("organicResults") or []):
+                    if not isinstance(item,dict):
+                        continue
+                    results.append({
+                        "link":item.get("url") or item.get("link") or "",
+                        "title":item.get("title") or "",
+                        "snippet":item.get("snippet") or item.get("description") or "",
+                        "_query":q
+                    })
+    except Exception as exc:
+        errors.append({"query":"APIFY_GOOGLE_SEARCH","error":str(exc)})
 
-    def serper_error_summary(items):
-        out={}
-        for item in items or []:
-            msg=str((item or {}).get("error","") if isinstance(item,dict) else item).strip()
-            if not msg:
-                msg="Erreur Serper inconnue"
-            out[msg]=out.get(msg,0)+1
-        return [{"error":k,"count":v} for k,v in sorted(out.items(), key=lambda kv:(-kv[1],kv[0]))]
-    with ThreadPoolExecutor(max_workers=min(8,len(queries))) as pool:
-        futures=[pool.submit(search_one,q) for q in queries]
-        for fut in as_completed(futures):
-            q,items,err=fut.result()
-            if err:
-                errors.append({"query":q,"error":err})
-            for item in items:
-                item=dict(item)
-                item["_query"]=q
-                results.append(item)
 
     def is_direct_listing_url(url):
         u=str(url or "").strip().lower()
