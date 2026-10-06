@@ -148,7 +148,7 @@ async function go(selectedUrls,selectedAds){const status=document.getElementById
   var box=document.getElementById('collectTest'),btn=document.getElementById('collectTestBtn');
   box.style.display='block';box.innerHTML='<div class="msg">⏳ Collecte brute en cours…</div>';
   if(btn)btn.disabled=true;
-  var body={category:document.getElementById('category').value,brand:document.getElementById('brand').value,model:document.getElementById('model').value,year:document.getElementById('year').value,lbc_browser_ads:window.__lbcBrowserAds||[]};
+  var body={category:document.getElementById('category').value,brand:document.getElementById('brand').value,model:document.getElementById('model').value,year:document.getElementById('year').value,dica_gamme:(window.__catalogSelection&&window.__catalogSelection.gamme)||'',lbc_browser_ads:window.__lbcBrowserAds||[]};
   try{
     var r=await fetch('/api/collecte',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     var d=await r.json();
