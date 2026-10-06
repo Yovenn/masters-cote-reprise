@@ -1337,6 +1337,13 @@ def collect_lbc_apify(brand, model, years, category="camping"):
           "query":f"LBC_APIFY_{valid[0]}","source":"LBC_APIFY","direct_listing":True,
           "detail_scraped":True,"raw_price":price,"raw_km":km,
           "index_date":ad.get("index_date") or ad.get("_scrapedAt") or ad.get("scraped_at")})
+    if collected and not unique and not errors:
+        errors.append(
+            f"Apify LBC: {len(collected)} résultat(s) brut(s) reçus mais 0 annonce(s) retenue(s) "
+            f"après validation modèle/prix/année/URL"
+        )
+    elif not collected and not errors:
+        errors.append("Apify LBC: 0 résultat brut reçu")
     return unique, errors
 
 
@@ -1344,10 +1351,12 @@ def collect_lbc_search_results(brand, model, years, category="camping", max_page
     """Collecte LBC ultra-légère via le Finder.
     Retourne (annonces, erreurs) afin que le diagnostic distingue
     une vraie absence d'annonce d'un blocage HTTP/anti-bot."""
+    # Si Apify est configuré, il est la source LBC exclusive.
+    # Ne jamais basculer silencieusement vers Finder : un retour Apify vide
+    # doit rester visible comme "0 annonce Apify", pas comme un faux HTTP 403 Finder.
     if os.environ.get("APIFY_API_TOKEN","").strip():
         apify_ads, apify_errors = collect_lbc_apify(brand, model, years, category)
-        if apify_ads or apify_errors:
-            return apify_ads, apify_errors
+        return apify_ads, apify_errors
 
     if not CURL_CFFI_AVAILABLE:
         return [], ["curl_cffi indisponible"]
