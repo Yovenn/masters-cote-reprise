@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Masters — Collecte Leboncoin",
+  "version": "1.0.0",
+  "description": "Collecte les annonces Leboncoin depuis un vrai onglet Chrome pour le moteur Cote Reprise Masters.",
+  "permissions": ["tabs", "scripting"],
+  "host_permissions": [
+    "https://www.leboncoin.fr/*",
+    "https://api.leboncoin.fr/*",
+    "https://masters-cote-reprise.onrender.com/*"
+  ],
+  "background": {"service_worker": "background.js"},
+  "content_scripts": [
+    {"matches": ["https://masters-cote-reprise.onrender.com/*"], "js": ["masters-bridge.js"], "run_at": "document_idle"},
+    {"matches": ["https://www.leboncoin.fr/*"], "js": ["lbc-page-bridge.js"], "run_at": "document_idle"}
+  ]
+}
