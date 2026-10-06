@@ -27,7 +27,7 @@ Le moteur utilise désormais un collecteur serveur optionnel pour Leboncoin. Lor
 
 Variables Render recommandées :
 - `APIFY_API_TOKEN` : jeton API Apify.
-- `APIFY_LBC_ACTOR` : acteur Apify LBC, par défaut `piotrv1001/leboncoin-listings-scraper`.
+- `APIFY_LBC_ACTOR` : acteur Apify LBC, par défaut `xtracto/leboncoin-listings`.
 - `LBC_PROXY_URL` : ancien fallback direct Finder, uniquement pour diagnostic/maintenance.
 
 Le parcours utilisateur ne nécessite aucune extension Chrome. En l'absence du collecteur central, le moteur signale l'indisponibilité LBC au lieu de transformer un ancien prix indexé en prix actuel.
