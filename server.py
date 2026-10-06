@@ -1295,24 +1295,28 @@ def collect_lbc_apify(brand, model, years, category="camping"):
     except Exception as exc:
         errors.append(f"Apify LBC {y_min}-{y_max} {type(exc).__name__}: {exc}")
     unique=[]; seen=set(); compact_model=re.sub(r"\s+","",norm(model))
+    reject_counts={"record_type":0,"url":0,"status":0,"brand":0,"model":0,"price":0,"year":0}
     for ad in collected:
         if not isinstance(ad,dict): continue
-        if str(ad.get("recordType","")).upper() not in ("","AD"): continue
+        if str(ad.get("recordType","")).upper() not in ("","AD"):
+            reject_counts["record_type"]+=1; continue
         url=str(ad.get("url") or ad.get("listingUrl") or "").strip().rstrip("/")
-        if not url or "leboncoin.fr" not in url.lower() or "/ad/" not in url.lower() or url in seen: continue
-        if str(ad.get("status","active")).lower() not in ("active",""): continue
+        if not url or "leboncoin.fr" not in url.lower() or "/ad/" not in url.lower() or url in seen:
+            reject_counts["url"]+=1; continue
+        if str(ad.get("status","active")).lower() not in ("active",""):
+            reject_counts["status"]+=1; continue
         title=str(ad.get("subject") or ad.get("title") or "").strip()
         body=str(ad.get("body") or ad.get("description") or "").strip()
         identity=f"{title} {body}"; nt=norm(identity)
         typed_brand=attr_find(ad,"brand")
         typed_model=attr_find(ad,"model")
         if typed_brand is not None and norm(brand) and norm(brand) not in norm(typed_brand):
-            continue
+            reject_counts["brand"]+=1; continue
         if typed_model is not None:
             if norm(model) not in norm(typed_model) and compact_model not in re.sub(r"\s+","",norm(typed_model)):
-                continue
+                reject_counts["model"]+=1; continue
         elif norm(model) not in norm(title) and compact_model not in re.sub(r"\s+","",norm(title)):
-            continue
+            reject_counts["model"]+=1; continue
         # Selon la version de l'Actor, le prix peut être dans price,
         # priceCents ou _price_eur. On ne mélange jamais avec un autre résultat.
         price=ad.get("price")
@@ -1325,7 +1329,8 @@ def collect_lbc_apify(brand, model, years, category="camping"):
         if isinstance(price,dict): price=price.get("value",price.get("amount"))
         try: price=round(float(str(price).replace(" ","").replace("\u00a0","").replace("\u202f","").replace(",",".")))
         except (TypeError,ValueError): price=None
-        if price is None or not 10000<=price<=150000: continue
+        if price is None or not 10000<=price<=150000:
+            reject_counts["price"]+=1; continue
         km=None
         # L'Actor peut fournir le kilométrage à plat ou dans attributes.
         flat_km=ad.get("mileageKm",ad.get("vehicle_mileage",ad.get("mileage")))
@@ -1345,7 +1350,8 @@ def collect_lbc_apify(brand, model, years, category="camping"):
                 if 1900<=yy<=2100: yrs.insert(0,yy)
             except Exception: pass
         valid=[yy for yy in yrs if yy in years]
-        if not valid: continue
+        if not valid:
+            reject_counts["year"]+=1; continue
         seen.add(url)
         unique.append({"source_domain":"leboncoin.fr","title":title,"url":url,"link":url,"snippet":body[:1400],
           "price":price,"price_source":"lbc_apify_current","km":km,"year":valid[0],"all_years":yrs[:6],
@@ -1354,8 +1360,9 @@ def collect_lbc_apify(brand, model, years, category="camping"):
           "index_date":ad.get("index_date") or ad.get("_scrapedAt") or ad.get("scraped_at")})
     if collected and not unique and not errors:
         errors.append(
-            f"Apify LBC: {len(collected)} résultat(s) brut(s) reçus mais 0 annonce(s) retenue(s) "
-            f"après validation modèle/prix/année/URL"
+            f"Apify LBC: {len(collected)} résultat(s) brut(s) reçus mais 0 annonce(s) retenue(s). "
+            f"Rejets: URL={reject_counts[\"url\"]}, modèle={reject_counts[\"model\"]}, marque={reject_counts[\"brand\"]}, "
+            f"prix={reject_counts[\"price\"]}, année={reject_counts[\"year\"]}, statut={reject_counts[\"status\"]}, type={reject_counts[\"record_type\"]}."
         )
     elif not collected and not errors:
         errors.append("Apify LBC: 0 résultat brut reçu")
