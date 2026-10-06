@@ -1272,8 +1272,6 @@ def collect_lbc_apify(brand, model, years, category="camping"):
         # Le filtre "text" reste en complément pour les variantes de libellé.
         payload={"category":category_id,
                  "locations":[],
-                 "vehicle_brand":str(brand).upper(),
-                 "vehicle_model":f"{brand}_{model}",
                  "text":f"{brand} {model}",
                  "year_min":int(y),"year_max":int(y),
                  "sort":"newest","max_results":100,
