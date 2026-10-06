@@ -77,6 +77,28 @@ def norm(s):
     s = unicodedata.normalize("NFKD", str(s or "")).encode("ascii","ignore").decode("ascii").lower()
     return re.sub(r"[^a-z0-9]","",s)
 
+def finish_alias_match(text, requested_gamme, model=""):
+    """Vérifie qu'une annonce porte bien la finition/gamme DICA demandée.
+    Le modèle reste traité séparément ; ici on contrôle uniquement la gamme.
+    """
+    target=norm(requested_gamme)
+    if not target:
+        return True
+    hay=norm(text)
+    # Une gamme composée doit retrouver chacun de ses mots significatifs.
+    raw_tokens=re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", str(requested_gamme or "")).encode("ascii","ignore").decode("ascii").lower())
+    tokens=[t for t in raw_tokens if len(t)>=3]
+    if not tokens:
+        return True
+    # Tolère les petites fautes OCR/annonce sur les mots longs (ex. ULTIMAT).
+    for tok in tokens:
+        if tok in hay:
+            continue
+        if len(tok)>=6 and any(abs(len(tok)-len(x))<=1 and tok[:6]==x[:6] for x in re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", str(text or "")).encode("ascii","ignore").decode("ascii").lower())):
+            continue
+        return False
+    return True
+
 def dica_ref_km(year, type_):
     return max(0, (DICA_EDITION_YEAR-year) * DICA_REF_KM_BY_TYPE.get(str(type_ or "").upper(), DICA_REF_KM_PER_YEAR))
 
