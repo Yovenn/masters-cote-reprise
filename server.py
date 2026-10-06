@@ -1271,6 +1271,7 @@ def collect_lbc_apify(brand, model, years, category="camping"):
         # Utilise les filtres véhicule structurés de l'Actor (marque/modèle + année).
         # Le filtre "text" reste en complément pour les variantes de libellé.
         payload={"category":category_id,
+                 "locations":[],
                  "vehicle_brand":str(brand).upper(),
                  "vehicle_model":f"{brand}_{model}",
                  "text":f"{brand} {model}",
@@ -1283,8 +1284,13 @@ def collect_lbc_apify(brand, model, years, category="camping"):
             if not resp.ok:
                 errors.append(f"Apify LBC {y} HTTP {resp.status_code}: {resp.text[:300]}"); continue
             data=resp.json()
-            if isinstance(data,list): collected.extend(data)
-            else: errors.append(f"Apify LBC {y}: réponse inattendue")
+            if isinstance(data,list):
+                collected.extend(data)
+                if not data:
+                    errors.append(f"Apify LBC {y}: HTTP {resp.status_code}, dataset vide (Actor {actor})")
+            else:
+                keys=", ".join(str(k) for k in data.keys()) if isinstance(data,dict) else type(data).__name__
+                errors.append(f"Apify LBC {y}: HTTP {resp.status_code}, réponse inattendue ({keys}) (Actor {actor})")
         except Exception as exc:
             errors.append(f"Apify LBC {y} {type(exc).__name__}: {exc}")
     unique=[]; seen=set(); compact_model=re.sub(r"\s+","",norm(model))
