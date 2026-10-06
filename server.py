@@ -1639,6 +1639,15 @@ def collecte_diagnostic():
 
     results=[]
     errors=[]
+
+    def serper_error_summary(items):
+        out={}
+        for item in items or []:
+            msg=str((item or {}).get("error","") if isinstance(item,dict) else item).strip()
+            if not msg:
+                msg="Erreur Serper inconnue"
+            out[msg]=out.get(msg,0)+1
+        return [{"error":k,"count":v} for k,v in sorted(out.items(), key=lambda kv:(-kv[1],kv[0]))]
     with ThreadPoolExecutor(max_workers=min(8,len(queries))) as pool:
         futures=[pool.submit(search_one,q) for q in queries]
         for fut in as_completed(futures):
@@ -1813,6 +1822,7 @@ def collecte_diagnostic():
         "unique_annonces":len(rows),
         "direct_fiches":len(rows),
         "errors":errors,
+        "errors_summary":serper_error_summary(errors),
         "lbc_errors":lbc_errors[:30],
         "lbc_proxy_configured":bool(os.environ.get("LBC_PROXY_URL","").strip()),
         "lbc_provider":("apify" if os.environ.get("APIFY_API_TOKEN","").strip() else
