@@ -1659,14 +1659,25 @@ def collecte_diagnostic():
     # formulation du modèle.
     finish_query=str(data.get("dica_gamme","")).strip()
     finish_search=finish_query
+    # Réduit la recherche à la vraie désignation de finition, sans
+    # motorisation/porteur ajoutés par la fiche DICA.
+    for sep in ("—","–","|"):
+        if sep in finish_search:
+            finish_search=finish_search.split(sep,1)[0]
+            break
+    if " - " in finish_search:
+        finish_search=finish_search.split(" - ",1)[0]
     if model:
         finish_search=re.sub(re.escape(model), "", finish_search, flags=re.I).strip(" -–—")
+    # Une seule requête par site/modèle/année : la finition est intégrée
+    # directement dans la requête pour éviter de doubler le run Apify.
     for y in market_years:
         for mv in variants:
             for domain,_label in other_sites:
-                queries.append(f'site:{domain} "{brand} {mv}" {y}')
                 if finish_search:
                     queries.append(f'site:{domain} "{brand} {mv}" "{finish_search}" {y}')
+                else:
+                    queries.append(f'site:{domain} "{brand} {mv}" {y}')
     queries=list(dict.fromkeys(queries))
 
     def error_summary(items):
