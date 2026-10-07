@@ -1653,10 +1653,20 @@ def collecte_diagnostic():
         ("campingcarannonces.com","campingcarannonces"),
         ("annonces-caravaning.com","annonces-caravaning"),
     )
+    # On garde une recherche modèle classique et on ajoute une recherche
+    # explicitement orientée finition. Cela évite de perdre des comparables
+    # dont le titre contient "Graphite Premium" mais pas exactement la même
+    # formulation du modèle.
+    finish_query=str(data.get("dica_gamme","")).strip()
+    finish_search=finish_query
+    if model:
+        finish_search=re.sub(re.escape(model), "", finish_search, flags=re.I).strip(" -–—")
     for y in market_years:
         for mv in variants:
             for domain,_label in other_sites:
                 queries.append(f'site:{domain} "{brand} {mv}" {y}')
+                if finish_search:
+                    queries.append(f'site:{domain} "{brand} {mv}" "{finish_search}" {y}')
     queries=list(dict.fromkeys(queries))
 
     def error_summary(items):
