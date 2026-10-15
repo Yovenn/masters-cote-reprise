@@ -1887,6 +1887,34 @@ def collecte_diagnostic():
             "prix_indexe_lbc": (raw_prices[0] if ("leboncoin.fr" in domain and raw_prices) else None)
         })
 
+    # Le diagnostic conserve les annonces brutes, y compris les véhicules neufs.
+    # Ces aides indiquent cependant lesquelles seront exclues du calcul d'occasion.
+    def looks_new(ad):
+        txt=norm(" ".join(str(ad.get(k,"") or "") for k in ("title","snippet","description","status","condition")))
+        markers=("neuf","neuve","vehicule neuf","camping car neuf","0 km","0km",
+                 "jamais immatricule","non immatricule","stock neuf","prix du modele expose")
+        return any(norm(m) in txt for m in markers)
+
+    # Dédoublonnage prudent entre sites : même URL ou même triplet prix/km/année
+    # avec un titre compatible. On ne fusionne pas uniquement sur le prix.
+    cross_seen=set()
+    dedup_rows=[]
+    for ad in rows:
+        price=ad.get("price")
+        km=ad.get("km")
+        yr=ad.get("year")
+        title_norm=norm(ad.get("title",""))
+        model_key=norm(model)
+        key=(price,km,yr,model_key) if price is not None and km is not None and yr is not None else None
+        if key and key in cross_seen:
+            continue
+        if key:
+            cross_seen.add(key)
+        ad["is_new_listing"]=looks_new(ad)
+        ad["eligible_for_used_market"]=not ad["is_new_listing"]
+        dedup_rows.append(ad)
+    rows=dedup_rows
+
     # IMPORTANT : pour Leboncoin, aucune récupération secondaire via
     # Serper n'est autorisée. Les résultats indexés peuvent être obsolètes
     # (annonce supprimée ou ancien prix). Le prix LBC doit provenir uniquement
