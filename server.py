@@ -1341,8 +1341,22 @@ def collect_lbc_apify(brand, model, years, category="camping", requested_gamme="
             data=resp.json()
             if isinstance(data,list):
                 collected.extend(data)
+                # Un résultat vide peut être ponctuel. Une seconde tentative
+                # sans mot-clé garde la catégorie et les années, puis les
+                # filtres marque/modèle/finition éliminent le bruit.
                 if not data:
-                    errors.append(f"Apify LBC {y_min}-{y_max}: HTTP {resp.status_code}, dataset vide (Actor {actor})")
+                    retry_payload=dict(payload)
+                    retry_payload.pop("text",None)
+                    retry_resp=requests.post(endpoint,json=retry_payload,
+                        headers={"Content-Type":"application/json","Authorization":f"Bearer {token}"},timeout=90)
+                    if retry_resp.ok:
+                        retry_data=retry_resp.json()
+                        if isinstance(retry_data,list) and retry_data:
+                            collected.extend(retry_data)
+                        else:
+                            errors.append(f"Apify LBC {y_min}-{y_max}: HTTP {resp.status_code}, dataset vide après nouvelle tentative (Actor {actor})")
+                    else:
+                        errors.append(f"Apify LBC nouvelle tentative {y_min}-{y_max} HTTP {retry_resp.status_code}: {retry_resp.text[:250]}")
             else:
                 keys=", ".join(str(k) for k in data.keys()) if isinstance(data,dict) else type(data).__name__
                 errors.append(f"Apify LBC {y_min}-{y_max}: HTTP {resp.status_code}, réponse inattendue ({keys}) (Actor {actor})")
@@ -1653,31 +1667,14 @@ def collecte_diagnostic():
         ("campingcarannonces.com","campingcarannonces"),
         ("annonces-caravaning.com","annonces-caravaning"),
     )
-    # On garde une recherche modèle classique et on ajoute une recherche
-    # explicitement orientée finition. Cela évite de perdre des comparables
-    # dont le titre contient "Graphite Premium" mais pas exactement la même
-    # formulation du modèle.
-    finish_query=str(data.get("dica_gamme","")).strip()
-    finish_search=finish_query
-    # Réduit la recherche à la vraie désignation de finition, sans
-    # motorisation/porteur ajoutés par la fiche DICA.
-    for sep in ("—","–","|"):
-        if sep in finish_search:
-            finish_search=finish_search.split(sep,1)[0]
-            break
-    if " - " in finish_search:
-        finish_search=finish_search.split(" - ",1)[0]
-    if model:
-        finish_search=re.sub(re.escape(model), "", finish_search, flags=re.I).strip(" -–—")
-    # Une seule requête par site/modèle/année : la finition est intégrée
-    # directement dans la requête pour éviter de doubler le run Apify.
+    # Recherche volontairement large par marque/modèle/année.
+    # La finition est contrôlée après récupération : la mettre dans Google
+    # peut masquer des annonces pourtant valides (titres rédigés différemment).
+    # Une variante compacte du modèle suffit pour limiter les appels.
+    search_model=variants[0] if variants else model
     for y in market_years:
-        for mv in variants:
-            for domain,_label in other_sites:
-                if finish_search:
-                    queries.append(f'site:{domain} "{brand} {mv}" "{finish_search}" {y}')
-                else:
-                    queries.append(f'site:{domain} "{brand} {mv}" {y}')
+        for domain,_label in other_sites:
+            queries.append(f'site:{domain} "{brand} {search_model}" {y}')
     queries=list(dict.fromkeys(queries))
 
     def error_summary(items):
